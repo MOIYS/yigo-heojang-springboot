@@ -15,10 +15,12 @@ FRONTEND README
 ## 빠른 시작
 
 ```bash
-npm install
+npm ci             # 최초 설치 (package-lock.json 기준)
 npm run dev        # http://localhost:5173
 npm run build      # 프로덕션 빌드
 ```
+
+패키지를 추가하거나 바꿀 때만 `npm install <package>`를 쓰고, 바뀐 `package-lock.json`도 함께 커밋한다.
 
 
 ## 프로젝트 구조
