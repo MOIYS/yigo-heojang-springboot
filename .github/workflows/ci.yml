@@ -120,10 +120,8 @@ jobs:
           redis.lock.ttl-seconds=600
           EOF
 
-      # mvnw는 저장소에 실행권한 없이 커밋돼 있어(100644) chmod가 필요하다.
       - name: Run tests
         run: |
-          chmod +x mvnw
           ./mvnw -B test
 
   # 챗봇 서버(Python)는 pytest로 검사한다.
