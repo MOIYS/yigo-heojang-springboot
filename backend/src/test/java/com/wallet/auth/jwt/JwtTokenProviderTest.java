@@ -1,6 +1,14 @@
 package com.wallet.auth.jwt;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+
+import javax.crypto.SecretKey;
+
 import com.wallet.member.domain.Member;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -49,6 +57,60 @@ class JwtTokenProviderTest {
 
         // then
         assertThat(expiresIn).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("Refresh Token 생성 및 검증 - 회원 ID와 만료 시간을 포함한 유효한 JWT를 생성한다")
+    void createAndValidateRefreshToken_success() {
+        // given
+        Long memberId = 1L;
+
+        // when
+        String token = jwtTokenProvider.createRefreshToken(memberId);
+
+        // then
+        assertThat(jwtTokenProvider.validateRefreshToken(token)).isTrue();
+        assertThat(jwtTokenProvider.getMemberIdFromRefreshToken(token)).isEqualTo(memberId);
+        assertThat(jwtTokenProvider.getRefreshTokenValidityInSeconds()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("Refresh Token 변조 검증 - 서명이 변경된 토큰은 거부한다")
+    void validateRefreshToken_fail_whenTokenIsTampered() {
+        // given
+        String token = jwtTokenProvider.createRefreshToken(1L);
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char original = token.charAt(signatureStart);
+        char replacement = original == 'a' ? 'b' : 'a';
+        String tamperedToken = token.substring(0, signatureStart)
+            + replacement
+            + token.substring(signatureStart + 1);
+
+        // when & then
+        assertThat(jwtTokenProvider.validateRefreshToken(tamperedToken)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Refresh Token 만료 검증 - 만료 시간이 지난 토큰은 거부한다")
+    void validateRefreshToken_fail_whenTokenIsExpired() {
+        // given
+        String refreshTokenSecret = (String) ReflectionTestUtils.getField(
+            jwtTokenProvider,
+            "refreshTokenSecret"
+        );
+        SecretKey signingKey = Keys.hmacShaKeyFor(
+            refreshTokenSecret.getBytes(StandardCharsets.UTF_8)
+        );
+        Instant now = Instant.now();
+        String expiredToken = Jwts.builder()
+            .setSubject("1")
+            .setIssuedAt(Date.from(now.minusSeconds(120)))
+            .setExpiration(Date.from(now.minusSeconds(60)))
+            .signWith(signingKey)
+            .compact();
+
+        // when & then
+        assertThat(jwtTokenProvider.validateRefreshToken(expiredToken)).isFalse();
     }
 
     @Test
