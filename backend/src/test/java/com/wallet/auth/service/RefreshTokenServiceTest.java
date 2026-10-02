@@ -2,12 +2,16 @@ package com.wallet.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import com.wallet.auth.domain.RefreshToken;
 import com.wallet.auth.mapper.RefreshTokenMapper;
@@ -43,6 +47,27 @@ public class RefreshTokenServiceTest {
         // then
         assertThat(result).isEqualTo(savedToken);
         verify(refreshTokenMapper).findValidTokenByHash(expectedHash);
+    }
+
+    @Test
+    @DisplayName("Refresh Token 교체 - 기존 토큰을 폐기하고 새 토큰의 해시만 저장한다")
+    void replace_revokesExistingTokenAndStoresHash() {
+        // given
+        Long memberId = 1L;
+        String refreshToken = "refresh.token.value";
+        String expectedHash = sha256Hasher.sha256(refreshToken);
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(1);
+
+        // when
+        refreshTokenService.replace(memberId, refreshToken, expiresAt);
+
+        // then
+        InOrder inOrder = inOrder(refreshTokenMapper);
+        inOrder.verify(refreshTokenMapper).revokeAllByMemberId(
+            memberId,
+            RefreshToken.REVOKE_REASON_REISSUED
+        );
+        inOrder.verify(refreshTokenMapper).insert(memberId, expectedHash, expiresAt);
     }
 
     @Test

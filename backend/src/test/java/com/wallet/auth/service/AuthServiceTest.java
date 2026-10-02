@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+    import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -307,6 +308,46 @@ class AuthServiceTest {
         verify(refreshTokenService).findValidToken(refreshToken);
         verify(memberMapper).findById(memberId);
         verify(jwtTokenProvider).createAccessToken(member);
+        verify(refreshTokenService, never()).replace(any(), any(), any());
+        verify(refreshTokenService, never()).revokeByToken(any());
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 - 동일한 Refresh Token을 재사용하며 회전하지 않는다")
+    void reissueAccessToken_legacy_allowsRefreshTokenReuseWithoutRotation() {
+        // given
+        String refreshToken = "refresh.token.value";
+        Long memberId = 1L;
+
+        RefreshToken savedToken = new RefreshToken();
+        ReflectionTestUtils.setField(savedToken, "memberId", memberId);
+
+        Member member = createMember(
+            memberId,
+            "user@example.com",
+            passwordEncoder.encode("1234"),
+            "이재혁",
+            "ACTIVE"
+        );
+
+        when(jwtTokenProvider.validateRefreshToken(refreshToken)).thenReturn(true);
+        when(jwtTokenProvider.getMemberIdFromRefreshToken(refreshToken)).thenReturn(memberId);
+        when(refreshTokenService.findValidToken(refreshToken)).thenReturn(savedToken);
+        when(memberMapper.findById(memberId)).thenReturn(member);
+        when(jwtTokenProvider.createAccessToken(member))
+            .thenReturn("first.access.token", "second.access.token");
+        when(jwtTokenProvider.getAccessTokenValidityInSeconds()).thenReturn(1800L);
+
+        // when
+        TokenResponse firstResponse = authService.reissueAccessToken(refreshToken);
+        TokenResponse secondResponse = authService.reissueAccessToken(refreshToken);
+
+        // then
+        assertThat(firstResponse.accessToken()).isEqualTo("first.access.token");
+        assertThat(secondResponse.accessToken()).isEqualTo("second.access.token");
+        verify(refreshTokenService, times(2)).findValidToken(refreshToken);
+        verify(refreshTokenService, never()).replace(any(), any(), any());
+        verify(refreshTokenService, never()).revokeByToken(any());
     }
 
     @Test
@@ -335,6 +376,63 @@ class AuthServiceTest {
             .isEqualTo(ErrorCode.REFRESH_TOKEN_FAILED);
 
         verify(refreshTokenService).findValidToken(refreshToken);
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 실패 - Refresh Token이 없으면 REFRESH_TOKEN_FAILED 예외가 발생한다")
+    void reissueAccessToken_fail_whenTokenIsMissing() {
+        // when
+        BusinessException exception = assertThrows(
+            BusinessException.class,
+            () -> authService.reissueAccessToken(null)
+        );
+
+        // then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.REFRESH_TOKEN_FAILED);
+        verify(jwtTokenProvider, never()).validateRefreshToken(any());
+        verify(refreshTokenService, never()).findValidToken(any());
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 실패 - 변조된 Refresh Token이면 DB를 조회하지 않는다")
+    void reissueAccessToken_fail_whenTokenIsInvalid() {
+        // given
+        String refreshToken = "tampered.refresh.token";
+        when(jwtTokenProvider.validateRefreshToken(refreshToken)).thenReturn(false);
+
+        // when
+        BusinessException exception = assertThrows(
+            BusinessException.class,
+            () -> authService.reissueAccessToken(refreshToken)
+        );
+
+        // then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.REFRESH_TOKEN_FAILED);
+        verify(refreshTokenService, never()).findValidToken(any());
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 실패 - JWT와 DB의 회원이 다르면 REFRESH_TOKEN_FAILED 예외가 발생한다")
+    void reissueAccessToken_fail_whenTokenMemberDoesNotMatchDatabase() {
+        // given
+        String refreshToken = "refresh.token.value";
+        RefreshToken savedToken = new RefreshToken();
+        ReflectionTestUtils.setField(savedToken, "memberId", 2L);
+
+        when(jwtTokenProvider.validateRefreshToken(refreshToken)).thenReturn(true);
+        when(jwtTokenProvider.getMemberIdFromRefreshToken(refreshToken)).thenReturn(1L);
+        when(refreshTokenService.findValidToken(refreshToken)).thenReturn(savedToken);
+
+        // when
+        BusinessException exception = assertThrows(
+            BusinessException.class,
+            () -> authService.reissueAccessToken(refreshToken)
+        );
+
+        // then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.REFRESH_TOKEN_FAILED);
+        verify(memberMapper, never()).findById(any());
+        verify(jwtTokenProvider, never()).createAccessToken(any());
     }
 
     @Test
