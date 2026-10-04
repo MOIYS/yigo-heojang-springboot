@@ -45,6 +45,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # GitHub Actions의 service 선언은 redis-server 실행 인자를 지정할 수 없다.
+      # 애플리케이션의 redis.password=test와 맞도록 requirepass를 직접 설정해 실행한다.
+      - name: Start Redis
+        run: |
+          docker run --detach --name redis-ci --publish 6379:6379 \
+            redis:7.2 redis-server --requirepass test
+
+          for attempt in {1..10}; do
+            if docker exec redis-ci redis-cli -a test ping | grep -q PONG; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs redis-ci
+          exit 1
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -99,17 +116,14 @@ jobs:
           chatbot.base-url=http://127.0.0.1:8000
           EOF
 
-      # redis.properties도 gitignore라 저장소에 없다. root-context.xml이 property-placeholder로
-      # 이 파일을 읽어 JedisPool 빈을 만드는데, 파일이 없으면 그 순간 XML 파싱 자체가 실패해서
-      # redis.properties와 무관한 다른 도메인의 통합 테스트까지 ApplicationContext 로드 실패로
-      # 전부 죽는다(같은 root-context.xml을 공유하기 때문). 값이 실제로 동작할 필요는 없다 —
-      # 이 파이프라인의 어떤 테스트도 Redis에 실제로 접속을 시도하지 않는다(JedisPool은 지연 연결).
+      # redis.properties도 gitignore라 저장소에 없다. 알림 특성 통합 테스트는 위 컨테이너의
+      # 실제 Redis를 사용해 분산 락·캐시 무효화·캐시 미스 복구를 검증한다.
       - name: Generate redis.properties for CI
         run: |
           cat > src/main/resources/redis.properties <<'EOF'
           redis.host=localhost
           redis.port=6379
-          redis.password=
+          redis.password=test
           redis.timeout-millis=2000
 
           redis.pool.max-total=16
