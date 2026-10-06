@@ -138,6 +138,13 @@ jobs:
         run: |
           ./mvnw -B test
 
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jacoco-report
+          path: backend/target/site/jacoco/
+          if-no-files-found: error
+
   # 챗봇 서버(Python)는 pytest로 검사한다.
   #
   # MySQL을 띄우고 시드까지 넣는 이유는, 테스트 대부분이 DB 연결이 없으면 스스로 건너뛰기
