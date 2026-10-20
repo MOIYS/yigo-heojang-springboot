@@ -12,8 +12,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- JDK 17 기준 -->
-        <maven.compiler.release>17</maven.compiler.release>
+        <!-- JDK 21 기준 -->
+        <maven.compiler.release>21</maven.compiler.release>
         <!-- Tomcat 9(javax.*) 호환을 위해 Spring 5.3.x 고정. Spring 6은 jakarta/Tomcat 10 필요 -->
         <spring.version>5.3.39</spring.version>
         <!-- Spring 5와 호환되는 mybatis-spring 2.x (3.x는 Spring 6 필요) -->

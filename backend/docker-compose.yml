@@ -33,7 +33,7 @@ services:
       - redis-data:/data
 
   tomcat:
-    image: tomcat:9-jdk17 # Tomcat 10(jakarta) 아님 — javax 스펙 유지
+    image: tomcat:9.0.123-jdk21-temurin-noble # Tomcat 10(jakarta) 아님 — javax 스펙 유지
     container_name: yigo-tomcat
     depends_on:
       - mysql

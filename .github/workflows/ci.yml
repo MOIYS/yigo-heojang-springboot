@@ -62,10 +62,10 @@ jobs:
           docker logs redis-ci
           exit 1
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: maven
 
@@ -134,9 +134,13 @@ jobs:
           redis.lock.ttl-seconds=600
           EOF
 
-      - name: Run tests
+      - name: Print toolchain versions
         run: |
-          ./mvnw -B test
+          java -version
+          ./mvnw -v
+
+      - name: Run tests
+        run: ./mvnw -B test
 
       - name: Upload JaCoCo report
         uses: actions/upload-artifact@v4
