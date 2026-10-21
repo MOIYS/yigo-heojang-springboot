@@ -19,7 +19,7 @@
         <!-- Spring 5와 호환되는 mybatis-spring 2.x (3.x는 Spring 6 필요) -->
         <mybatis.spring.version>2.1.2</mybatis.spring.version>
 
-        <jedis.version>5.2.0</jedis.version>
+        <jedis.version>8.0.2</jedis.version>
     </properties>
 
     <dependencies>
