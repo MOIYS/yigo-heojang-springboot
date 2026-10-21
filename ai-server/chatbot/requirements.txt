@@ -2,7 +2,7 @@
 #   pip install -r chatbot/requirements.txt
 fastapi>=0.115
 uvicorn[standard]>=0.32
-pydantic>=2.9
+pydantic>=2.14.1
 python-dotenv>=1.0
 httpx>=0.27
 # 별칭·가맹점 조회와 약관 원문용. 계산값은 DB 가 아니라 엔진 API 에서 받는다.
