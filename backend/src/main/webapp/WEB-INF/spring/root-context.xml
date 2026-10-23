@@ -16,7 +16,8 @@
 
     <!-- DB 접속값은 코드/설정에 직접 쓰지 않고 db.properties에서 읽어 ${...}로 참조.
          db.properties는 .gitignore로 제외, db.properties.example를 복사해 채운다. + redis.properties -->
-    <context:property-placeholder location="classpath:db.properties,classpath:redis.properties"/>
+    <context:property-placeholder
+        location="classpath:db.properties,classpath:redis.properties,classpath*:jwt.properties"/>
 
     <!-- 서비스 계층 컴포넌트 스캔 (컨트롤러는 제외 → servlet-context가 담당).
          @RestController는 @Controller를 메타 포함하므로 함께 제외된다. -->

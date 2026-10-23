@@ -1,5 +1,7 @@
 # 로컬 통합 실행용: Tomcat 9 + MySQL 8.0 + 챗봇(Python)
 # 선행: WAR를 먼저 빌드해야 한다  →  ./mvnw clean package  (target/ROOT.war 생성)
+# MYSQL_ROOT_PASSWORD, REDIS_PASSWORD와 두 JWT Secret은 같은 폴더의 .env에서 읽는다.
+# 공유 가능한 키 목록은 .env.example에 있으며 실제 .env는 커밋하지 않는다.
 #
 # 주의: docker로 실행할 땐 db.properties의 주소를 컨테이너 이름으로 바꾼 뒤 WAR를 다시 빌드한다
 #       (db.properties가 WAR 안에 포함되기 때문).
@@ -40,6 +42,9 @@ services:
       - redis
     ports:
       - '127.0.0.1:8080:8080'
+    environment:
+      JWT_ACCESS_TOKEN_SECRET: ${JWT_ACCESS_TOKEN_SECRET:?JWT_ACCESS_TOKEN_SECRET is required}
+      JWT_REFRESH_TOKEN_SECRET: ${JWT_REFRESH_TOKEN_SECRET:?JWT_REFRESH_TOKEN_SECRET is required}
     volumes:
       # 빌드된 WAR를 ROOT로 배포 → http://localhost:8080/api/health
       - ./target/ROOT.war:/usr/local/tomcat/webapps/ROOT.war

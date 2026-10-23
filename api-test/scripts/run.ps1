@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
     [string]$BaseUrl = $(if ($env:API_TEST_BASE_URL) { $env:API_TEST_BASE_URL } else { 'http://localhost:8080' }),
-    [string]$DbContainer = $(if ($env:API_TEST_DB_CONTAINER) { $env:API_TEST_DB_CONTAINER } else { 'yigo-mysql' }),
-    [string]$DbName = $(if ($env:API_TEST_DB_NAME) { $env:API_TEST_DB_NAME } else { 'wallet' }),
-    [string]$DbUser = $(if ($env:API_TEST_DB_USER) { $env:API_TEST_DB_USER } else { 'root' }),
-    [string]$DbPassword = $env:API_TEST_DB_PASSWORD
+    [string]$DbContainer = $(if ($env:DB_CONTAINER) { $env:DB_CONTAINER } else { 'yigo-mysql' }),
+    [string]$DbName = $(if ($env:DB_NAME) { $env:DB_NAME } else { 'wallet' }),
+    [string]$DbUser = $env:DB_USER,
+    [string]$DbPassword = $env:DB_PASSWORD
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,16 +19,20 @@ $runId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
 $fixtureSetupAttempted = $false
 
 function Assert-RequiredInput {
+    if ([string]::IsNullOrWhiteSpace($DbUser)) {
+        throw 'DB_USER 환경변수를 설정해야 합니다.'
+    }
+
     if ([string]::IsNullOrWhiteSpace($DbPassword)) {
-        throw 'API_TEST_DB_PASSWORD 환경변수를 설정해야 합니다. 비밀번호는 파일에 저장하지 않습니다.'
+        throw 'DB_PASSWORD 환경변수를 설정해야 합니다. 비밀번호는 파일에 저장하지 않습니다.'
     }
 
     if ($DbName -notmatch '^[A-Za-z0-9_]+$') {
-        throw 'API_TEST_DB_NAME에는 영문자, 숫자, 밑줄만 사용할 수 있습니다.'
+        throw 'DB_NAME에는 영문자, 숫자, 밑줄만 사용할 수 있습니다.'
     }
 
     if ($DbContainer -notmatch '^[A-Za-z0-9_.-]+$') {
-        throw 'API_TEST_DB_CONTAINER 값이 올바른 Docker 컨테이너 이름이 아닙니다.'
+        throw 'DB_CONTAINER 값이 올바른 Docker 컨테이너 이름이 아닙니다.'
     }
 
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {

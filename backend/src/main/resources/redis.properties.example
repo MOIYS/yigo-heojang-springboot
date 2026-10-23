@@ -1,5 +1,7 @@
 # Redis 접속 정보. 실제 값은 redis.properties에 넣고 커밋하지 않는다(.gitignore 처리).
 # 로컬 개발 시 이 파일을 복사해 redis.properties로 저장한 뒤 값을 채운다.
+# docker-compose 사용 시 host는 redis, password는 backend/.env의 REDIS_PASSWORD와 같아야 한다.
+# 이 파일은 Spring 애플리케이션 설정 예제이며 docker-compose의 .env를 대신하지 않는다.
 redis.host=localhost
 redis.port=6379
 redis.password=your_password_here

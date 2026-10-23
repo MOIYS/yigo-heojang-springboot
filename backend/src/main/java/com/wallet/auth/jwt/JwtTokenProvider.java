@@ -9,39 +9,44 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.WeakKeyException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.wallet.member.domain.Member;
 
 @Component
 public class JwtTokenProvider {
-    /**
-     * Access Token 서명용 비밀키.
-     *
-     * 현재 설정된 값은 로컬 테스트용 임시 문자열로,
-     * 추후 배포 시 환경 변수 또는 properties 파일로 분리가 필요하다.
-     */
-    private final String accessTokenSecret =
-        "this-is-a-sample-secret-key-for-access-token-issue-please-change";
+    private static final String ACCESS_TOKEN_SECRET_PROPERTY = "JWT_ACCESS_TOKEN_SECRET";
+    private static final String REFRESH_TOKEN_SECRET_PROPERTY = "JWT_REFRESH_TOKEN_SECRET";
 
-    /**
-     * Refresh Token 서명용 비밀키.
-     *
-     * Access Token과 Refresh Token은 수명과 사용 목적이 다르므로
-     * 서로 다른 서명키를 사용한다.
-     */
-    private final String refreshTokenSecret =
-        "this-is-a-sample-secret-key-for-refresh-token-issue-please-change";
+    private final SecretKey accessSigningKey;
+    private final SecretKey refreshSigningKey;
 
     private final long accessTokenValidityInSeconds = 60L * 10L;  // 10분
     private final long refreshTokenValidityInSeconds = 60L * 60L * 12L; // 12시간
 
-    private SecretKey getAccessSigningKey() {
-        return Keys.hmacShaKeyFor(accessTokenSecret.getBytes(StandardCharsets.UTF_8));
+    public JwtTokenProvider(
+        @Value("${JWT_ACCESS_TOKEN_SECRET}") String accessTokenSecret,
+        @Value("${JWT_REFRESH_TOKEN_SECRET}") String refreshTokenSecret
+    ) {
+        this.accessSigningKey = createSigningKey(accessTokenSecret, ACCESS_TOKEN_SECRET_PROPERTY);
+        this.refreshSigningKey = createSigningKey(refreshTokenSecret, REFRESH_TOKEN_SECRET_PROPERTY);
     }
 
-    private SecretKey getRefreshSigningKey() {
-        return Keys.hmacShaKeyFor(refreshTokenSecret.getBytes(StandardCharsets.UTF_8));
+    private SecretKey createSigningKey(String secret, String propertyName) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(propertyName + " must be configured and must not be blank");
+        }
+
+        try {
+            return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        } catch (WeakKeyException e) {
+            throw new IllegalStateException(
+                propertyName + " must be at least 32 bytes for HMAC-SHA signing",
+                e
+            );
+        }
     }
 
     public String createAccessToken(Member member) {
@@ -54,7 +59,7 @@ public class JwtTokenProvider {
             .claim("name", member.getName())
             .setIssuedAt(now)
             .setExpiration(expiry)
-            .signWith(getAccessSigningKey())
+            .signWith(accessSigningKey)
             .compact();
     }
 
@@ -66,7 +71,7 @@ public class JwtTokenProvider {
             .setSubject(String.valueOf(memberId))
             .setIssuedAt(now)
             .setExpiration(expiry)
-            .signWith(getRefreshSigningKey())
+            .signWith(refreshSigningKey)
             .compact();
     }
 
@@ -90,7 +95,7 @@ public class JwtTokenProvider {
      */
     public void validateAccessTokenOrThrow(String token) {
         Jwts.parserBuilder()
-            .setSigningKey(getAccessSigningKey())
+            .setSigningKey(accessSigningKey)
             .build()
             .parseClaimsJws(token);
     }
@@ -98,7 +103,7 @@ public class JwtTokenProvider {
     public boolean validateRefreshToken(String token) {
         try {
             Jwts.parserBuilder()
-                .setSigningKey(getRefreshSigningKey())
+                .setSigningKey(refreshSigningKey)
                 .build()
                 .parseClaimsJws(token);
             return true;
@@ -109,7 +114,7 @@ public class JwtTokenProvider {
 
     public Long getMemberIdFromAccessToken(String token) {
         Claims claims = Jwts.parserBuilder()
-            .setSigningKey(getAccessSigningKey())
+            .setSigningKey(accessSigningKey)
             .build()
             .parseClaimsJws(token)
             .getBody();
@@ -119,7 +124,7 @@ public class JwtTokenProvider {
 
     public Long getMemberIdFromRefreshToken(String token) {
         Claims claims = Jwts.parserBuilder()
-            .setSigningKey(getRefreshSigningKey())
+            .setSigningKey(refreshSigningKey)
             .build()
             .parseClaimsJws(token)
             .getBody();
