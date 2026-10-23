@@ -3,6 +3,7 @@ package com.wallet.auth.jwt;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Properties;
 
 import javax.crypto.SecretKey;
 
@@ -11,14 +12,64 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JwtTokenProviderTest {
+    private static final String TEST_ACCESS_TOKEN_SECRET =
+        "test-only-access-token-secret-value-32-bytes-minimum";
+    private static final String TEST_REFRESH_TOKEN_SECRET =
+        "test-only-refresh-token-secret-value-32-bytes-minimum";
 
-    private final JwtTokenProvider jwtTokenProvider = new JwtTokenProvider();
+    private final JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
+        TEST_ACCESS_TOKEN_SECRET,
+        TEST_REFRESH_TOKEN_SECRET
+    );
+
+    @Test
+    @DisplayName("JWT 설정 실패 - Access Token Secret이 없으면 컨텍스트 로딩에 실패한다")
+    void contextFailsWhenAccessSecretMissing() {
+        Properties properties = new Properties();
+        properties.setProperty("JWT_REFRESH_TOKEN_SECRET", TEST_REFRESH_TOKEN_SECRET);
+
+        assertThatThrownBy(() -> refreshContext(properties))
+            .hasStackTraceContaining("JWT_ACCESS_TOKEN_SECRET");
+    }
+
+    @Test
+    @DisplayName("JWT 설정 실패 - Refresh Token Secret이 없으면 컨텍스트 로딩에 실패한다")
+    void contextFailsWhenRefreshSecretMissing() {
+        Properties properties = new Properties();
+        properties.setProperty("JWT_ACCESS_TOKEN_SECRET", TEST_ACCESS_TOKEN_SECRET);
+
+        assertThatThrownBy(() -> refreshContext(properties))
+            .hasStackTraceContaining("JWT_REFRESH_TOKEN_SECRET");
+    }
+
+    @Test
+    @DisplayName("JWT 설정 성공 - 두 Secret을 주입하면 컨텍스트가 로드되고 토큰을 검증한다")
+    void contextLoadsWhenJwtSecretsInjected() {
+        Properties properties = new Properties();
+        properties.setProperty("JWT_ACCESS_TOKEN_SECRET", TEST_ACCESS_TOKEN_SECRET);
+        properties.setProperty("JWT_REFRESH_TOKEN_SECRET", TEST_REFRESH_TOKEN_SECRET);
+
+        try (AnnotationConfigApplicationContext context = createContext(properties)) {
+            context.refresh();
+            JwtTokenProvider provider = context.getBean(JwtTokenProvider.class);
+
+            String accessToken = provider.createAccessToken(createMember());
+            String refreshToken = provider.createRefreshToken(1L);
+
+            assertThat(provider.validateAccessToken(accessToken)).isTrue();
+            assertThat(provider.validateRefreshToken(refreshToken)).isTrue();
+        }
+    }
 
     @Test
     @DisplayName("Access Token 생성 - 정상 회원 정보로 JWT를 생성한다")
@@ -94,12 +145,8 @@ class JwtTokenProviderTest {
     @DisplayName("Refresh Token 만료 검증 - 만료 시간이 지난 토큰은 거부한다")
     void validateRefreshToken_fail_whenTokenIsExpired() {
         // given
-        String refreshTokenSecret = (String) ReflectionTestUtils.getField(
-            jwtTokenProvider,
-            "refreshTokenSecret"
-        );
         SecretKey signingKey = Keys.hmacShaKeyFor(
-            refreshTokenSecret.getBytes(StandardCharsets.UTF_8)
+            TEST_REFRESH_TOKEN_SECRET.getBytes(StandardCharsets.UTF_8)
         );
         Instant now = Instant.now();
         String expiredToken = Jwts.builder()
@@ -134,5 +181,27 @@ class JwtTokenProviderTest {
         ReflectionTestUtils.setField(member, "name", "이재혁");
         ReflectionTestUtils.setField(member, "memberStatus", "ACTIVE");
         return member;
+    }
+
+    private void refreshContext(Properties properties) {
+        try (AnnotationConfigApplicationContext context = createContext(properties)) {
+            context.refresh();
+        }
+    }
+
+    private AnnotationConfigApplicationContext createContext(Properties properties) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.setEnvironment(new MockEnvironment());   // 추가: 컨텍스트 환경 교체
+        context.registerBean(
+            PropertySourcesPlaceholderConfigurer.class,
+            () -> {
+                PropertySourcesPlaceholderConfigurer configurer =
+                    new PropertySourcesPlaceholderConfigurer();
+                configurer.setProperties(properties);    // setEnvironment 줄은 제거
+                return configurer;
+            }
+        );
+        context.register(JwtTokenProvider.class);
+        return context;
     }
 }

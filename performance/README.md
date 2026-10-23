@@ -19,11 +19,24 @@ Issue #11의 Spring 전환 전 Legacy WAR 읽기 API 기준선입니다. 운영 
 비밀번호 원문과 DB 비밀번호는 저장소 파일이나 명령 인수에 기록하지 않습니다. 성능 계정용 BCrypt 해시는 cost 10 이상의 60자 값으로 준비합니다.
 
 ```powershell
+$env:DB_USER = '<로컬 MySQL 사용자>'
+$env:DB_PASSWORD = '<로컬 MySQL 비밀번호>'
 $env:PERF_PASSWORD_HASH = '<성능 계정 비밀번호의 BCrypt 해시>'
-$env:MYSQL_PASSWORD = '<로컬 MySQL 비밀번호>'
 $env:PERF_PASSWORD = '<성능 계정 비밀번호 원문>'
 $env:BASE_URL = 'http://localhost:8080'
 ```
+
+`DB_USER`, `DB_PASSWORD`, `PERF_PASSWORD_HASH`는 데이터 초기화 스크립트가 사용하고, `PERF_PASSWORD`, `BASE_URL`은 k6가 사용합니다. PowerShell 스크립트와 k6는 `.env` 파일을 자동으로 읽지 않습니다.
+
+데이터 초기화 스크립트의 전체 환경변수는 다음과 같습니다.
+
+| 환경 변수 | 필수 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `DB_USER` | 예 | 없음 | MySQL 계정 |
+| `DB_PASSWORD` | 예 | 없음 | MySQL 비밀번호 |
+| `PERF_PASSWORD_HASH` | 예 | 없음 | 성능 계정에 저장할 BCrypt 해시 |
+| `DB_CONTAINER` | 아니요 | `yigo-mysql` | MySQL Docker 컨테이너 이름 |
+| `DB_NAME` | 아니요 | `wallet` | 성능 데이터를 초기화할 DB 이름 |
 
 ### 2. 데이터 초기화
 
@@ -33,7 +46,7 @@ $env:BASE_URL = 'http://localhost:8080'
 .\performance\reset-perf-data.ps1
 ```
 
-컨테이너명, DB명 또는 계정이 다를 때만 파라미터로 지정합니다.
+환경변수 대신 명령 파라미터를 사용할 수도 있습니다. 비밀번호는 명령 기록에 남을 수 있으므로 `DB_PASSWORD` 환경변수 사용을 권장합니다.
 
 ```powershell
 .\performance\reset-perf-data.ps1 `

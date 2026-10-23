@@ -8,11 +8,70 @@ Spring Legacy(비 Boot) + MyBatis + MySQL, Maven WAR 배포.
 
 - JDK 17 / Tomcat 9 (javax 서블릿 스펙 — Tomcat 10 아님) / MySQL 8.0
 
-## 실행
+## 설정 파일의 역할
 
-1. **DB 설정** — `src/main/resources/db.properties.example`를 `db.properties`로 복사 후 값 입력.
-   (로컬 실행: `host=localhost` / docker-compose: `host=mysql`)
-2. **빌드** — `./mvnw clean package` (Windows: `mvnw.cmd clean package`) → `target/ROOT.war`
-3. **실행** — 로컬 Tomcat 9에 `ROOT.war` 배포, 또는 `docker compose up -d` (tomcat + mysql)
-4. **헬스체크** — `curl http://localhost:8080/api/health`
-   → `{"success":true,"data":"ok","message":null}`
+- `src/main/resources/db.properties`: Spring이 읽는 DB, SMTP, CORS, 챗봇 설정이다. `db.properties.example`를 복사해 만들고 커밋하지 않는다.
+- `src/main/resources/redis.properties`: Spring이 읽는 Redis 연결 및 풀 설정이다. `redis.properties.example`를 복사해 만들고 커밋하지 않는다.
+- `.env`: Docker Compose가 MySQL, Redis, Tomcat 컨테이너에 값을 전달할 때만 사용한다. Spring 또는 로컬 Tomcat이 이 파일을 자동으로 읽지는 않는다.
+
+## 로컬 Tomcat 실행
+
+PowerShell에서 예제 설정을 복사하고 로컬 환경에 맞는 값을 입력한다.
+
+```powershell
+cd backend
+Copy-Item src/main/resources/db.properties.example src/main/resources/db.properties
+Copy-Item src/main/resources/redis.properties.example src/main/resources/redis.properties
+```
+
+JWT Secret은 Access Token과 Refresh Token에 서로 다른 32바이트 이상의 값을 사용한다. Tomcat도 이 환경변수를 상속해야 하므로 다음 변수를 설정한 PowerShell에서 Tomcat을 시작한다.
+
+```powershell
+$env:JWT_ACCESS_TOKEN_SECRET = '<32바이트 이상의 로컬 Access Token Secret>'
+$env:JWT_REFRESH_TOKEN_SECRET = '<32바이트 이상의 별도 Refresh Token Secret>'
+./mvnw.cmd clean package
+```
+
+생성된 `target/ROOT.war`를 Tomcat 9에 배포한 뒤 확인한다.
+
+```powershell
+curl.exe http://localhost:8080/api/health
+```
+
+테스트는 `src/test/resources/jwt.properties`의 테스트 전용 값을 사용한다.
+
+## Docker Compose 실행
+
+Docker Compose는 `backend/.env`에서 다음 필수 변수를 읽는다.
+
+| 환경변수 | 사용처 |
+| --- | --- |
+| `MYSQL_ROOT_PASSWORD` | MySQL root 계정 |
+| `REDIS_PASSWORD` | Redis `requirepass` |
+| `JWT_ACCESS_TOKEN_SECRET` | Tomcat의 Access Token 서명 |
+| `JWT_REFRESH_TOKEN_SECRET` | Tomcat의 Refresh Token 서명 |
+
+실제 값을 저장소에 기록하지 말고 개인 `.env`를 만든다.
+
+```powershell
+cd backend
+Copy-Item .env.example .env
+```
+
+Compose 실행 전 `db.properties`의 DB 호스트를 `mysql`, 비밀번호를 `.env`의 `MYSQL_ROOT_PASSWORD`와 같게 설정한다. `redis.properties`의 호스트는 `redis`, 비밀번호는 `.env`의 `REDIS_PASSWORD`와 같게 설정한다. 챗봇 주소는 `http://chatbot:9999`으로 설정한다. 이 파일들은 WAR에 포함되므로 값을 바꾼 뒤 다시 빌드해야 한다.
+
+```powershell
+./mvnw.cmd clean package
+docker compose up -d
+curl.exe http://localhost:8080/api/health
+```
+
+챗봇 컨테이너에는 별도로 커밋하지 않는 `../ai-server/.env`가 필요하다.
+
+## Secret 관리
+
+- `.env`, `db.properties`, `redis.properties`에는 로컬 또는 배포 환경의 실제 값만 두고 커밋하지 않는다.
+- `.env.example`과 `*.properties.example`에는 변수명과 자리표시자만 둔다.
+- Access Token과 Refresh Token Secret은 서로 다르게 설정하고 최소 32바이트를 사용한다.
+- 터미널 출력, README, 명령 인수, 테스트 결과에 비밀번호나 Token Secret을 남기지 않는다.
+- Secret이 노출되면 저장소에서 문자열만 지우는 것으로 끝내지 말고 해당 값을 즉시 교체한다.

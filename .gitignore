@@ -59,3 +59,6 @@ frontend/dist/
 
 # k6 원본 출력과 summary export는 로컬 보관용이다. 요약 수치만 README에 기록한다.
 performance/results/raw/
+
+# gitleaks 산출물
+gitleaks-report.json

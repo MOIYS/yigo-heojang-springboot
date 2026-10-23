@@ -53,20 +53,22 @@ npm ci
 
 ## 환경변수
 
-DB 비밀번호는 Postman environment나 저장소 파일에 넣지 않는다.
+DB 인증정보는 Postman environment나 저장소 파일에 넣지 않고 PowerShell 프로세스 환경변수로 전달한다.
 
 ```powershell
-$env:API_TEST_DB_PASSWORD = '<local mysql password>'
+$env:DB_USER = '<local mysql user>'
+$env:DB_PASSWORD = '<local mysql password>'
 ```
 
-선택 설정:
+| 환경변수 | 필수 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `DB_USER` | 예 | 없음 | MySQL 계정 |
+| `DB_PASSWORD` | 예 | 없음 | MySQL 비밀번호 |
+| `DB_CONTAINER` | 아니요 | `yigo-mysql` | MySQL Docker 컨테이너 이름 |
+| `DB_NAME` | 아니요 | `wallet` | fixture를 적용할 DB 이름 |
+| `API_TEST_BASE_URL` | 아니요 | `http://localhost:8080` | 테스트 대상 Backend 주소 |
 
-| 환경변수 | 기본값 |
-|---|---|
-| `API_TEST_BASE_URL` | `http://localhost:8080` |
-| `API_TEST_DB_CONTAINER` | `yigo-mysql` |
-| `API_TEST_DB_NAME` | `wallet` |
-| `API_TEST_DB_USER` | `root` |
+이 값들은 현재 PowerShell 프로세스에만 설정되며 `.env` 파일을 자동으로 읽지 않는다.
 
 ## 실행
 

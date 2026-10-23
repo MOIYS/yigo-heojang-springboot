@@ -1,13 +1,21 @@
 [CmdletBinding()]
 param(
-    [string]$ContainerName = 'yigo-mysql',
-    [string]$Database = 'wallet',
-    [string]$MySqlUser = 'root',
-    [string]$MySqlPassword = $env:MYSQL_PASSWORD,
+    [string]$ContainerName = $(if ($env:DB_CONTAINER) { $env:DB_CONTAINER } else { 'yigo-mysql' }),
+    [string]$Database = $(if ($env:DB_NAME) { $env:DB_NAME } else { 'wallet' }),
+    [string]$MySqlUser = $env:DB_USER,
+    [string]$MySqlPassword = $env:DB_PASSWORD,
     [string]$PerfPasswordHash = $env:PERF_PASSWORD_HASH
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($MySqlUser)) {
+    throw 'DB_USER is required.'
+}
+
+if ([string]::IsNullOrWhiteSpace($MySqlPassword)) {
+    throw 'DB_PASSWORD is required.'
+}
 
 function Invoke-DockerCommand {
     param(
@@ -34,10 +42,6 @@ if ([string]::IsNullOrWhiteSpace($PerfPasswordHash)) {
 
 if ($PerfPasswordHash.Length -ne 60 -or $PerfPasswordHash -notmatch '^\$2[aby]\$') {
     throw 'PERF_PASSWORD_HASH must be a 60-character BCrypt hash beginning with $2a$, $2b$, or $2y$.'
-}
-
-if ([string]::IsNullOrWhiteSpace($MySqlPassword)) {
-    throw 'MySQL password is empty. Set MYSQL_PASSWORD or pass -MySqlPassword.'
 }
 
 $performanceDirectory = $PSScriptRoot
