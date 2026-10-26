@@ -2,7 +2,7 @@ package com.wallet.personalization.controller;
 
 import static com.wallet.common.constant.RequestAttributeNames.AUTHENTICATED_MEMBER_ID;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 import lombok.RequiredArgsConstructor;
 

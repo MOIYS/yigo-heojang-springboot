@@ -1,6 +1,6 @@
 package com.wallet.notification.dto;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * 알림 설정 변경 요청이다.

@@ -14,10 +14,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- JDK 21 기준 -->
         <maven.compiler.release>21</maven.compiler.release>
-        <!-- Tomcat 9(javax.*) 호환을 위해 Spring 5.3.x 고정. Spring 6은 jakarta/Tomcat 10 필요 -->
-        <spring.version>5.3.39</spring.version>
-        <!-- Spring 5와 호환되는 mybatis-spring 2.x (3.x는 Spring 6 필요) -->
-        <mybatis.spring.version>2.1.2</mybatis.spring.version>
+        <!-- Spring 6.2 / Jakarta EE 10 기준. 외부 Tomcat 10.1(Servlet 6.0) 배포 -->
+        <spring.version>6.2.19</spring.version>
+        <!-- Spring 6 호환 계열 -->
+        <mybatis.spring.version>3.0.6</mybatis.spring.version>
 
         <jedis.version>5.2.0</jedis.version>
     </properties>
@@ -34,7 +34,7 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-core</artifactId>
-            <version>5.7.14</version>
+            <version>6.5.11</version>
         </dependency>
 
         <!-- Spring Test (테스트 기능) -->
@@ -111,7 +111,7 @@
             <version>2.17.2</version>
         </dependency>
 
-        <!-- 이메일 발송: Spring Framework 5 + Tomcat 9(javax.*) 환경에서 JavaMailSender 사용 -->
+        <!-- 이메일 발송: Spring Framework 6 + Jakarta Mail 환경에서 JavaMailSender 사용 -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context-support</artifactId>
@@ -119,16 +119,16 @@
         </dependency>
 
         <dependency>
-            <groupId>com.sun.mail</groupId>
-            <artifactId>javax.mail</artifactId>
-            <version>1.6.2</version>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>jakarta.mail</artifactId>
+            <version>2.0.5</version>
         </dependency>
 
-        <!-- 서블릿 API: 톰캣이 제공하므로 provided. Tomcat 9 = servlet 4.0(javax.*) -->
+        <!-- 서블릿 API: 외부 Tomcat 10.1이 제공하므로 provided -->
         <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-            <version>4.0.1</version>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -173,23 +173,23 @@
 
         <!-- Bean Validation API -->
         <dependency>
-            <groupId>javax.validation</groupId>
-            <artifactId>validation-api</artifactId>
-            <version>2.0.1.Final</version>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>3.0.2</version>
         </dependency>
 
         <!-- Hibernate Validator (검증 실제 구현체) -->
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
-            <version>6.2.5.Final</version>
+            <version>8.0.6.Final</version>
         </dependency>
 
         <!-- 테스트 환경에서 Bean Validation 메시지 처리를 위한 EL 구현체 -->
         <dependency>
-            <groupId>org.glassfish</groupId>
-            <artifactId>javax.el</artifactId>
-            <version>3.0.1-b12</version>
+            <groupId>org.glassfish.expressly</groupId>
+            <artifactId>expressly</artifactId>
+            <version>5.0.0</version>
             <scope>test</scope>
         </dependency>
 

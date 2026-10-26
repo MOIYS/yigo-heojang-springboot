@@ -1,7 +1,7 @@
 package com.wallet.auth.dto;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Positive;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public record TermAgreementRequest(
     @NotNull(message = "약관 버전 ID는 필수입니다.")

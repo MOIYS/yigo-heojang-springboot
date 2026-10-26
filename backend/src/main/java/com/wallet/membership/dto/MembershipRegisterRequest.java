@@ -1,6 +1,6 @@
 package com.wallet.membership.dto;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 public class MembershipRegisterRequest {
 

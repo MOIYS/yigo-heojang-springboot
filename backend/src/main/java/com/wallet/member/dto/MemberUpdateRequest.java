@@ -1,7 +1,7 @@
 package com.wallet.member.dto;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record MemberUpdateRequest(
     @NotBlank(message = "닉네임은 필수입니다.")

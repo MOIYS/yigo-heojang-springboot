@@ -1,7 +1,7 @@
 package com.wallet.engine.dto;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Positive;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 /**
  * 결제 직전 추천 요청 — 어디서 얼마를 쓸 예정인가.

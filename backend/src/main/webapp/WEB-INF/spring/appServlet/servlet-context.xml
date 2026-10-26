@@ -14,7 +14,12 @@
     <!-- 어노테이션 기반 MVC 활성화.
          jackson-databind가 클래스패스에 있으면 JSON 메시지 컨버터를 자동 등록한다.
          → 별도 뷰리졸버(JSP 등) 없이 @RestController 반환값이 JSON으로 나간다. -->
-    <mvc:annotation-driven/>
+    <mvc:annotation-driven>
+        <!-- Spring 5의 URL 매칭 계약(예: /path와 /path/)을 유지한다. -->
+        <mvc:path-matching path-matcher="antPathMatcher" trailing-slash="true"/>
+    </mvc:annotation-driven>
+
+    <bean id="antPathMatcher" class="org.springframework.util.AntPathMatcher"/>
 
     <context:property-placeholder location="classpath:db.properties"/>
 

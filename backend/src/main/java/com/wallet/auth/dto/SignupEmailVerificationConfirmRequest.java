@@ -1,8 +1,8 @@
 package com.wallet.auth.dto;
 
-import javax.validation.constraints.Email;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Pattern;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 public record SignupEmailVerificationConfirmRequest(
     @NotBlank(message = "이메일은 필수입니다.")
