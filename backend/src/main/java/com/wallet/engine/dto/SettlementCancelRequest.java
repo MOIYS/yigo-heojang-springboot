@@ -1,6 +1,6 @@
 package com.wallet.engine.dto;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * 결제 취소 정산 요청 — 취소된 소비내역 하나를 가리킨다.

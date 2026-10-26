@@ -3,7 +3,7 @@ package com.wallet.payment.controller;
 import static com.wallet.common.constant.RequestAttributeNames.AUTHENTICATED_MEMBER_ID;
 
 import java.time.format.DateTimeFormatter;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 import com.wallet.common.ApiResponse;
 import com.wallet.payment.dto.PaymentQrCreateRequest;

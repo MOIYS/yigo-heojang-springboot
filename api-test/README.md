@@ -111,7 +111,7 @@ npm test
 
 ## 문제 진단
 
-Newman 요약만으로는 최초 실패와 연쇄 실패를 구분하기 어렵다. 먼저 CLI 출력에서 가장 앞선 실패 요청을 확인하고, 로컬 Tomcat의 access/error log와 대조한다.
+Newman 요약만으로는 최초 실패와 연쇄 실패를 구분하기 어렵다. 먼저 CLI 출력에서 가장 앞선 실패 요청을 확인하고, Spring Boot 프로세스 또는 `docker compose logs backend` 출력과 대조한다.
 
 `curl.exe -i http://localhost:8080/api/auth/signup`은 GET 요청이다. 이 저장소의 회원가입 endpoint는 POST 전용이며, 현재 전역 예외 처리기는 지원하지 않는 HTTP method 예외를 `SERVER_INTERNAL_ERROR` 500으로 변환한다. 회원가입 자체를 확인하려면 반드시 POST와 JSON 본문을 사용해야 한다.
 

@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.wallet.notification.batch.model.MemberDedupKeyLookup;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class NotificationMapperIntegrationTest {
 

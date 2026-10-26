@@ -21,7 +21,7 @@ import com.wallet.notification.batch.scheduler.NotificationBatchScheduler;
  * <p>
  * `@Profile("local")`이 유일한 방어선이다 — spring.profiles.active에 "local"이 명시적으로
  * 켜져 있을 때만 이 빈이 등록된다. 운영 배포 설정에는 이 프로파일을 절대 넣지 말 것.
- * 로컬에서 켜는 법: Tomcat 실행 시 VM 옵션에 -Dspring.profiles.active=local 추가,
+ * 로컬에서 켜는 법: 실행 JAR 인수에 --spring.profiles.active=local 추가,
  * 또는 환경 변수 SPRING_PROFILES_ACTIVE=local 설정.
  * <p>
  * 인증을 걸지 않은 이유: 로컬 전용이라는 전제 위에서 테스트 편의를 우선했다. 만약 이 프로파일을

@@ -1,7 +1,7 @@
 package com.wallet.member.dto;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Pattern;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 public record SimplePasswordEmailVerificationVerifyRequest(
     @NotBlank(message = "인증 코드는 필수입니다.")

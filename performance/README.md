@@ -1,4 +1,4 @@
-# Legacy WAR 성능 기준선
+# Spring Boot 전환 전 Legacy WAR 성능 기준선
 
 Issue #11의 Spring 전환 전 Legacy WAR 읽기 API 기준선입니다. 운영 DB가 아닌 격리된 로컬 MySQL 8.0에서만 실행합니다.
 
@@ -11,7 +11,7 @@ Issue #11의 Spring 전환 전 Legacy WAR 읽기 API 기준선입니다. 운영 
 ### 1. 사전 조건
 
 - k6가 PATH에 설치되어 있어야 합니다.
-- Legacy WAR가 로컬 Tomcat에 배포되어 있어야 합니다.
+- Spring Boot 실행 JAR가 `http://localhost:8080`에서 실행 중이어야 합니다.
 - MySQL 8.0에 `backend/db/schema.sql`, `data.sql`, `91_seed_card_benefit.sql`이 적용되어 있어야 합니다.
 - MySQL은 운영 데이터와 분리된 성능 측정용 DB여야 합니다.
 - 성능 계정 20개가 함께 사용할 로컬 전용 비밀번호를 준비합니다.
@@ -65,9 +65,9 @@ $env:BASE_URL = 'http://localhost:8080'
 | 읽음 / 안 읽음 활성 알림 | 300 / 400 |
 | 삭제 알림 | 100 |
 
-### 3. Legacy WAR 기동
+### 3. Spring Boot 실행 JAR 기동
 
-WAR를 배포한 로컬 Tomcat을 기존 방식으로 기동합니다. 이 저장소는 Tomcat 시작 명령이나 `setenv.bat`을 강제하지 않습니다. k6 실행 전에 `BASE_URL`이 실제 기동 주소와 같은지만 확인합니다.
+`backend/target/yigo-heojang-backend.jar`를 `java -jar` 또는 Docker Compose의 `backend` 서비스로 기동합니다. k6 실행 전에 `BASE_URL`이 실제 기동 주소와 같은지만 확인합니다.
 
 ### 4. smoke 확인
 
@@ -137,7 +137,7 @@ k6 테스트 종료 후에도 성능 측정용 계정과 관련 데이터는 MyS
 
 | 환경 변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `BASE_URL` | `http://localhost:8080` | 대상 Legacy WAR 주소 |
+| `BASE_URL` | `http://localhost:8080` | 대상 Spring Boot 백엔드 주소 |
 | `PERF_PASSWORD` | 없음 | 필수 성능 계정 비밀번호 |
 | `PERF_EMAILS` | 시드 계정 20개 | 쉼표로 구분한 계정 목록 |
 | `PERF_ACCOUNT_COUNT` | `20` | 사용할 기본 시드 계정 수 |

@@ -2,7 +2,7 @@ package com.wallet.auth.controller;
 
 import java.time.Duration;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 

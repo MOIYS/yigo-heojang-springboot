@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   ④ 총액이 부문 합계와 일치한다
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class BenefitReportServiceIntegrationTest {
 

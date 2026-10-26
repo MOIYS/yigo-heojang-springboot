@@ -1,6 +1,6 @@
 package com.wallet.card.dto;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 보유 카드 등록 요청 DTO.

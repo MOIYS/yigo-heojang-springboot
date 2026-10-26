@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatusException(ResponseStatusException e) {
         String message = e.getReason() == null ? "요청 처리에 실패했습니다." : e.getReason();
-        return ResponseEntity.status(e.getStatus())
+        return ResponseEntity.status(e.getStatusCode())
                 .body(ApiResponse.error("REQUEST_FAILED", message));
     }
 

@@ -1,8 +1,8 @@
 package com.wallet.auth.dto;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.Pattern;
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record PasswordResetRequest(
     @NotBlank(message = "비밀번호 재설정 토큰은 필수입니다.")

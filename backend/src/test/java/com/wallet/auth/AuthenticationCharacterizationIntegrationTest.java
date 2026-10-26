@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import javax.servlet.http.Cookie;
+import jakarta.servlet.http.Cookie;
 import javax.sql.DataSource;
 
 import com.jayway.jsonpath.JsonPath;
@@ -43,11 +43,11 @@ import com.wallet.common.util.Sha256Hasher;
 @ContextHierarchy({
     @ContextConfiguration(
         name = "root",
-        locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml"
+        locations = "classpath:/spring/root-context.xml"
     ),
     @ContextConfiguration(
         name = "dispatcher",
-        locations = "file:src/main/webapp/WEB-INF/spring/appServlet/servlet-context.xml"
+        locations = "classpath:/spring/servlet-context.xml"
     )
 })
 @Transactional

@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 환경에서 깨진다.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class CardRecommendationServiceIntegrationTest {
 

@@ -1,6 +1,6 @@
 package com.wallet.card.dto;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * 보유 카드의 대표 카드 여부를 변경할 때 사용하는 요청 DTO다.
