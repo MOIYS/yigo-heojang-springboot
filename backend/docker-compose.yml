@@ -1,10 +1,11 @@
-# 로컬 통합 실행용: Tomcat 9 + MySQL 8.0 + 챗봇(Python)
-# 선행: WAR를 먼저 빌드해야 한다  →  ./mvnw clean package  (target/ROOT.war 생성)
+# 로컬 통합 실행용: Spring Boot 실행 JAR + MySQL 8.0 + Redis + 챗봇(Python)
+# 선행: JAR를 먼저 빌드해야 한다  →  ./mvnw clean package
+#       (target/yigo-heojang-backend.jar 생성)
 # MYSQL_ROOT_PASSWORD, REDIS_PASSWORD와 두 JWT Secret은 같은 폴더의 .env에서 읽는다.
 # 공유 가능한 키 목록은 .env.example에 있으며 실제 .env는 커밋하지 않는다.
 #
-# 주의: docker로 실행할 땐 db.properties의 주소를 컨테이너 이름으로 바꾼 뒤 WAR를 다시 빌드한다
-#       (db.properties가 WAR 안에 포함되기 때문).
+# 주의: docker로 실행할 땐 db.properties의 주소를 컨테이너 이름으로 바꾼 뒤 JAR를 다시 빌드한다
+#       (db.properties가 JAR 안에 포함되기 때문).
 #         db.url        localhost:3306      → mysql:3306
 #         chatbot.base-url  127.0.0.1:8000  → http://chatbot:8000
 #       컨테이너 안에서 localhost는 "그 컨테이너 자신"이라 옆 컨테이너에 닿지 않는다.
@@ -34,9 +35,11 @@ services:
     volumes:
       - redis-data:/data
 
-  tomcat:
-    image: tomcat:9.0.123-jdk21-temurin-noble # Tomcat 10(jakarta) 아님 — javax 스펙 유지
-    container_name: yigo-tomcat
+  backend:
+    image: eclipse-temurin:21-jre
+    container_name: yigo-backend
+    working_dir: /app
+    command: ["java", "-jar", "/app/yigo-heojang-backend.jar"]
     depends_on:
       - mysql
       - redis
@@ -46,13 +49,12 @@ services:
       JWT_ACCESS_TOKEN_SECRET: ${JWT_ACCESS_TOKEN_SECRET:?JWT_ACCESS_TOKEN_SECRET is required}
       JWT_REFRESH_TOKEN_SECRET: ${JWT_REFRESH_TOKEN_SECRET:?JWT_REFRESH_TOKEN_SECRET is required}
     volumes:
-      # 빌드된 WAR를 ROOT로 배포 → http://localhost:8080/api/health
-      - ./target/ROOT.war:/usr/local/tomcat/webapps/ROOT.war
+      - ./target/yigo-heojang-backend.jar:/app/yigo-heojang-backend.jar:ro
 
   # 챗봇 서버. 가져다 쓸 이미지가 없어 ai-server/Dockerfile 로 직접 만든다.
   #
   # ports 를 쓰지 않는 것이 핵심이다. 이 서버는 토큰을 검증하지 않는다 —
-  # Spring 이 이미 검증한 요청만 온다는 전제 위에 서 있다. 밖에서 직접 부를 수 있으면
+  # Spring Boot가 이미 검증한 요청만 온다는 전제 위에 서 있다. 밖에서 직접 부를 수 있으면
   # 그 전제가 깨지므로, 같은 네트워크의 톰캣만 http://chatbot:8000 으로 닿게 둔다.
   chatbot:
     build: ../ai-server
@@ -66,7 +68,7 @@ services:
     # 여기서 이긴다 — 환경변수가 이미 있으면 .env 가 덮어쓰지 않는다.
     environment:
       DB_HOST: mysql
-      BACKEND_BASE_URL: http://tomcat:8080
+      BACKEND_BASE_URL: http://backend:8080
       CHATBOT_HOST: 0.0.0.0
 
 volumes:

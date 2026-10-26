@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 클래스 이름이 *Test라 surefire가 실행한다. @Transactional으로 픽스처를 넣고 테스트마다 롤백한다.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class CardStatusServiceIntegrationTest {
 

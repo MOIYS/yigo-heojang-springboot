@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @Transactional으로 픽스처를 넣고 테스트마다 롤백하므로 시드 데이터에 의존·오염되지 않는다.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class PerformanceSnapshotServiceIntegrationTest {
 

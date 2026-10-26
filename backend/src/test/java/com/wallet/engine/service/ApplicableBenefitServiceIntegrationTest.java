@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 환경(CI는 schema.sql만 적재한다)에서 깨진다.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class ApplicableBenefitServiceIntegrationTest {
 

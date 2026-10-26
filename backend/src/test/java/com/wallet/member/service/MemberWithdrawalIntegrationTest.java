@@ -47,7 +47,7 @@ import com.wallet.member.dto.MemberWithdrawRequest;
  * REQUIRED 전파라 이 테스트의 트랜잭션에 합류할 뿐, 별도 커밋이 일어나지 않는다.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class MemberWithdrawalIntegrationTest {
 

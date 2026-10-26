@@ -6,7 +6,7 @@
 
 | 폴더 | 내용 |
 | --- | --- |
-| `backend/` | Spring Legacy 백엔드 · 추천/계산 엔진 (Maven, WAR) |
+| `backend/` | Spring Boot 3.5 백엔드 · 추천/계산 엔진 (Maven, 실행 JAR) |
 | `ai-server/` | Python AI 챗봇 서버 (V2, 추후) |
 | `frontend/` | Vue.js 프론트엔드 |
 | `docs/` | API 명세 등 문서 |
@@ -45,7 +45,7 @@ mysql -u root -p <DB이름> < backend/db/94_seed_membership_usage_place.sql
 
 ### 카드 이미지
 
-카드 이미지는 WAR 바깥 폴더에서 서빙한다. `backend/src/main/resources/db.properties`에 경로를 적고,
+카드 이미지는 애플리케이션 JAR 바깥 폴더에서 서빙한다. `backend/src/main/resources/db.properties`에 경로를 적고,
 그 아래 `cards/` 폴더에 이미지를 둔다.
 
 ```

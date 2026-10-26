@@ -17,11 +17,22 @@
     <mvc:annotation-driven>
         <!-- Spring 5의 URL 매칭 계약(예: /path와 /path/)을 유지한다. -->
         <mvc:path-matching path-matcher="antPathMatcher" trailing-slash="true"/>
+        <!-- Boot 자동 MVC가 아니라 기존 XML ObjectMapper가 JSON 계약을 결정한다. -->
+        <mvc:message-converters register-defaults="false">
+            <bean class="org.springframework.http.converter.ByteArrayHttpMessageConverter"/>
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <constructor-arg value="UTF-8"/>
+            </bean>
+            <bean class="org.springframework.http.converter.ResourceHttpMessageConverter"/>
+            <bean class="org.springframework.http.converter.ResourceRegionHttpMessageConverter"/>
+            <bean class="org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter"/>
+            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+                <property name="objectMapper" ref="objectMapper"/>
+            </bean>
+        </mvc:message-converters>
     </mvc:annotation-driven>
 
     <bean id="antPathMatcher" class="org.springframework.util.AntPathMatcher"/>
-
-    <context:property-placeholder location="classpath:db.properties"/>
 
     <!-- CORS 전역 설정. 프론트(Vue 개발서버)는 다른 오리진(포트)이라 브라우저가 교차 출처 요청을
          막는데, 여기서 허용 오리진을 명시해 풀어준다.

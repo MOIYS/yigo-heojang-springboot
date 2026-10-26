@@ -52,7 +52,7 @@ import java.util.StringJoiner;
  */
 @Disabled("시드 생성 도구 — 시드를 다시 만들 때만 수동 실행")
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml")
+@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
 @Transactional
 class UserSeedReplayTest {
 

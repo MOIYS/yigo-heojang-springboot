@@ -54,11 +54,11 @@ import redis.clients.jedis.JedisPoolConfig;
 @ContextHierarchy({
     @ContextConfiguration(
         name = "root",
-        locations = "file:src/main/webapp/WEB-INF/spring/root-context.xml"
+        locations = "classpath:/spring/root-context.xml"
     ),
     @ContextConfiguration(
         name = "dispatcher",
-        locations = "file:src/main/webapp/WEB-INF/spring/appServlet/servlet-context.xml"
+        locations = "classpath:/spring/servlet-context.xml"
     )
 })
 class NotificationCharacterizationIntegrationTest {
