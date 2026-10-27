@@ -6,13 +6,12 @@ import com.wallet.engine.seed.UserSeedScenario.Holding;
 import com.wallet.engine.seed.UserSeedScenario.Selection;
 import com.wallet.engine.seed.UserSeedScenario.Txn;
 import com.wallet.engine.service.SettlementService;
+import com.wallet.boot.WalletApplication;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
@@ -51,8 +50,7 @@ import java.util.StringJoiner;
  * 그때도 금액을 월 단위로 합산하면 안 된다. 거래를 하나씩 넣으며 한도를 소진시켜야 맞는다.
  */
 @Disabled("시드 생성 도구 — 시드를 다시 만들 때만 수동 실행")
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class UserSeedReplayTest {
 

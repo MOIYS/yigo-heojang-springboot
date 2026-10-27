@@ -2,14 +2,13 @@ package com.wallet.engine.service;
 
 import com.wallet.engine.dto.CardRecommendation;
 import com.wallet.engine.dto.CardRecommendationResponse;
+import com.wallet.boot.WalletApplication;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -28,8 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 카테고리·가맹점·카드사까지 전부 직접 넣고 롤백한다. 시드에서 찾아 쓰면 시드가 없는
  * 환경에서 깨진다.
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class CardRecommendationServiceIntegrationTest {
 

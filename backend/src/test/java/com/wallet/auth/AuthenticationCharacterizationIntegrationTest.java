@@ -13,16 +13,12 @@ import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.ContextHierarchy;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -30,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import com.wallet.common.util.Sha256Hasher;
+import com.wallet.boot.WalletApplication;
 
 /**
  * Boot 전환 전에 레거시 인증 동작을 테스트로 고정한다.
@@ -38,18 +35,7 @@ import com.wallet.common.util.Sha256Hasher;
  * 각 테스트의 트랜잭션이 끝날 때 롤백한다. Refresh Token 비회전과 재사용은
  * 현재 동작을 기록하기 위한 것으로, RTR 도입 시 의도적으로 변경될 대상이다.</p>
  */
-@ExtendWith(SpringExtension.class)
-@WebAppConfiguration
-@ContextHierarchy({
-    @ContextConfiguration(
-        name = "root",
-        locations = "classpath:/spring/root-context.xml"
-    ),
-    @ContextConfiguration(
-        name = "dispatcher",
-        locations = "classpath:/spring/servlet-context.xml"
-    )
-})
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class AuthenticationCharacterizationIntegrationTest {
     private static final String EMAIL = "legacy-auth@example.com";

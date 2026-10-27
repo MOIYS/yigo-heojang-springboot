@@ -1,6 +1,6 @@
 # backend
 
-Spring Boot 3.5 + 기존 Spring XML 설정 + MyBatis + MySQL, Maven 실행 JAR 배포.
+Spring Boot 3.5 + Java Config + MyBatis + MySQL, Maven 실행 JAR 배포.
 
 > 초안. 팀 합의에 따라 PR로 수정한다.
 
@@ -13,6 +13,14 @@ Spring Boot 3.5 + 기존 Spring XML 설정 + MyBatis + MySQL, Maven 실행 JAR �
 - `src/main/resources/db.properties`: Spring이 읽는 DB, SMTP, CORS, 챗봇 설정이다. `db.properties.example`를 복사해 만들고 커밋하지 않는다.
 - `src/main/resources/redis.properties`: Spring이 읽는 Redis 연결 및 풀 설정이다. `redis.properties.example`를 복사해 만들고 커밋하지 않는다.
 - `.env`: Docker Compose가 MySQL, Redis, backend 컨테이너에 값을 전달할 때만 사용한다. Spring Boot는 이 파일을 자동으로 읽지 않는다.
+
+`com.wallet.boot.RootConfiguration`이 기존 이름의 인프라 Bean과 컨트롤러·부트 설정을 제외한 애플리케이션 컴포넌트를 등록하고,
+`WebMvcConfiguration`이 `@EnableWebMvc` 기반으로 컨트롤러, JSON 변환, 경로 매칭, CORS를 구성한다.
+설정은 단일 `PropertySourcesPlaceholderConfigurer`가 `db.properties`, `redis.properties`,
+`classpath*:jwt.properties` 순서로 읽는다. 외부 Environment 설정은 파일보다 우선한다.
+Boot Config Data import로 전환하지 않으며 필수 JWT Secret 누락 시 기동에 실패한다.
+
+Bean 목록 diff와 실행 검증 내역은 [Java Config 이관 결과](docs/java-config-migration.md)에 기록했다.
 
 ## 로컬 실행 JAR 실행
 
