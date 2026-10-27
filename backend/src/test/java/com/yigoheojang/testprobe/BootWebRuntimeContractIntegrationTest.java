@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,7 +50,8 @@ import com.wallet.boot.WalletApplication;
 )
 class BootWebRuntimeContractIntegrationTest {
 
-    private static final String FRONTEND_ORIGIN = "http://localhost:5173";
+    @Value("${app.cors.allowed-origin:http://localhost:5173}")
+    private String frontendOrigin;
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -111,23 +113,35 @@ class BootWebRuntimeContractIntegrationTest {
 
     @Test
     void preflightKeepsCorsContractAndTrailingSlashMatchingWithoutJwt() {
-        ResponseEntity<String> response = preflight("/api/terms");
-        ResponseEntity<String> trailingSlashPreflight = preflight("/api/terms/");
+        for (String path : List.of("/api/terms", "/api/terms/")) {
+            ResponseEntity<String> response = preflight(path, frontendOrigin);
 
-        // Spring 5.3/Tomcat 9 기준선도 미해석 Origin placeholder 때문에 동일하게 403이다.
-        // Origin 허용 계약은 별도 이슈에서 수정하고, 여기서는 OPTIONS가 JWT 오류로 차단되지
-        // 않으며 trailing slash 유무와 무관하게 같은 CORS 처리 결과를 내는지만 고정한다.
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getBody()).isEqualTo("Invalid CORS request");
-        assertThat(response.getBody()).doesNotContain("ACCESS_TOKEN_INVALID");
-        assertThat(trailingSlashPreflight.getStatusCode()).isEqualTo(response.getStatusCode());
-        assertThat(trailingSlashPreflight.getBody()).isEqualTo(response.getBody());
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isNullOrEmpty();
+            assertThat(response.getHeaders().getAccessControlAllowOrigin()).isEqualTo(frontendOrigin);
+            assertThat(response.getHeaders().getAccessControlAllowMethods()).containsExactly(
+                HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT,
+                HttpMethod.PATCH, HttpMethod.DELETE, HttpMethod.OPTIONS
+            );
+            assertThat(response.getHeaders().getAccessControlAllowHeaders())
+                .containsExactlyInAnyOrder("Authorization", "Content-Type");
+            assertThat(response.getHeaders().getAccessControlAllowCredentials()).isTrue();
+            assertThat(response.getHeaders().getAccessControlMaxAge()).isEqualTo(1800);
+        }
 
         ResponseEntity<String> trailingSlashResponse = restTemplate.getForEntity(
             "/test-only/date/",
             String.class
         );
         assertThat(trailingSlashResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void preflightRejectsUnallowedOriginWithoutAllowOriginHeader() {
+        ResponseEntity<String> response = preflight("/api/terms", "https://unallowed.example.invalid");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getHeaders()).doesNotContainKey(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN);
     }
 
     @Test
@@ -164,9 +178,9 @@ class BootWebRuntimeContractIntegrationTest {
         assertThat(response.getBody()).isEqualTo("한글-인코딩");
     }
 
-    private ResponseEntity<String> preflight(String path) {
+    private ResponseEntity<String> preflight(String path, String origin) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setOrigin(FRONTEND_ORIGIN);
+        headers.setOrigin(origin);
         headers.setAccessControlRequestMethod(HttpMethod.GET);
         headers.setAccessControlRequestHeaders(List.of("Authorization", "Content-Type"));
         return restTemplate.exchange(
