@@ -76,7 +76,7 @@
             <version>${mybatis.spring.version}</version>
         </dependency>
 
-        <!-- XML에서 직접 구성하며 버전은 Boot BOM에 맡긴다. -->
+        <!-- Java Config에서 직접 구성하며 버전은 Boot BOM에 맡긴다. -->
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
@@ -89,7 +89,7 @@
             <version>${mysql.connector.version}</version>
         </dependency>
 
-        <!-- 기존 JavaMailSender XML 빈은 유지하고 Jakarta Mail 좌표는 starter에 맡긴다. -->
+        <!-- 기존 JavaMailSender 설정은 유지하고 Jakarta Mail 좌표는 starter에 맡긴다. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>

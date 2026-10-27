@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * 전월실적 판정에 필요한 조회 매퍼.
  *
- * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(root-context.xml의 annotationClass 필터).
+ * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(RootConfiguration의 annotationClass 필터).
  * 반환은 전부 flat row DTO다 — 불변 계산기 모델로의 조립은 PerformanceInputAssembler가 한다.
  */
 @Mapper

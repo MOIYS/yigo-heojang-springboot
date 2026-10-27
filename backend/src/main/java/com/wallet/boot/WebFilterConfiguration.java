@@ -13,7 +13,7 @@ import org.springframework.web.filter.CharacterEncodingFilter;
 
 import com.wallet.auth.filter.JwtAuthenticationFilter;
 
-/** web.xml에서 이관한 필터 등록과 기존 XML ObjectMapper 연결 설정. */
+/** 기존 필터 이름, 순서와 URL 매핑을 유지하는 서블릿 필터 등록. */
 @Configuration(proxyBeanMethods = false)
 public class WebFilterConfiguration {
 

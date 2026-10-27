@@ -16,7 +16,7 @@ import java.util.List;
  * 추천·현황 조회는 상태 테이블을 읽기만 하지만, 정산은 결제로 소진을 더하고 취소로 되돌린다.
  * 증분/차감은 모두 {@code GREATEST(0, 컬럼 + 델타)} 형태라, 취소가 음수 델타로 와도 0 아래로 내려가지 않는다.
  *
- * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(root-context.xml의 annotationClass 필터).
+ * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(RootConfiguration의 annotationClass 필터).
  */
 @Mapper
 public interface SettlementMapper {

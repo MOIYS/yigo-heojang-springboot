@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * 혜택 규칙 조회 매퍼 — 추천 계산에 쓸 카드별 활성 혜택을 가져온다.
  *
- * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(root-context.xml의 annotationClass 필터).
+ * @Mapper가 붙어야 MapperScannerConfigurer가 프록시 빈으로 등록한다(RootConfiguration의 annotationClass 필터).
  * 반환은 전부 flat row DTO다 — BenefitCandidate로의 조립은 BenefitCandidateAssembler가 한다.
  */
 @Mapper

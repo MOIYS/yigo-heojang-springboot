@@ -70,7 +70,7 @@ class BootWebRuntimeContractIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void onlyOneMvcConfigurationAndTheXmlObjectMapperDriveJsonResponses() throws Exception {
+    void onlyOneMvcConfigurationAndTheConfiguredObjectMapperDriveJsonResponses() throws Exception {
         assertThat(applicationContext.getBeansOfType(WebMvcAutoConfiguration.class)).isEmpty();
 
         List<MappingJackson2HttpMessageConverter> jacksonConverters = handlerAdapter
