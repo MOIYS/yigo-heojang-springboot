@@ -18,20 +18,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.ContextHierarchy;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import com.wallet.notification.batch.scheduler.NotificationBatchScheduler;
+import com.wallet.boot.WalletApplication;
 import com.wallet.notification.redis.NotificationUnreadCountCacheRepository;
 import com.wallet.notification.redis.RedisKeys;
 import com.wallet.notification.repository.NotificationRepository;
@@ -49,18 +46,7 @@ import redis.clients.jedis.JedisPoolConfig;
  * <p>실제 Spring MVC, 배치, MyBatis, MySQL과 Redis를 사용한다. 배치가 커밋된 뒤 실행하는
  * 캐시 후처리까지 관찰해야 하므로 테스트 트랜잭션 롤백 대신 고유 픽스처와 명시적 정리를 쓴다.</p>
  */
-@ExtendWith(SpringExtension.class)
-@WebAppConfiguration
-@ContextHierarchy({
-    @ContextConfiguration(
-        name = "root",
-        locations = "classpath:/spring/root-context.xml"
-    ),
-    @ContextConfiguration(
-        name = "dispatcher",
-        locations = "classpath:/spring/servlet-context.xml"
-    )
-})
+@SpringBootTest(classes = WalletApplication.class)
 class NotificationCharacterizationIntegrationTest {
     private static final String BENEFIT_LIMIT_JOB = "benefit-limit";
 

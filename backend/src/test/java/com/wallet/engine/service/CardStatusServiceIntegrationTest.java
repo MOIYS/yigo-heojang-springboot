@@ -7,14 +7,13 @@ import com.wallet.engine.dto.BriefingType;
 import com.wallet.engine.dto.CardMonthlyStatus;
 import com.wallet.engine.dto.CardStatusOverview;
 import com.wallet.engine.dto.CardStatusSummary;
+import com.wallet.boot.WalletApplication;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
@@ -36,8 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * 클래스 이름이 *Test라 surefire가 실행한다. @Transactional으로 픽스처를 넣고 테스트마다 롤백한다.
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class CardStatusServiceIntegrationTest {
 

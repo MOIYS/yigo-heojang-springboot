@@ -2,14 +2,13 @@ package com.wallet.engine.service;
 
 import com.wallet.engine.dto.BenefitReport;
 import com.wallet.engine.dto.BenefitReportCategory;
+import com.wallet.boot.WalletApplication;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
@@ -26,8 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   ③ 부문이 혜택 금액 내림차순으로 정렬되고 1위가 최대 부문이 된다
  *   ④ 총액이 부문 합계와 일치한다
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class BenefitReportServiceIntegrationTest {
 

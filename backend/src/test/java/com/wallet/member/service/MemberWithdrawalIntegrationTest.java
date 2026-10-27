@@ -11,14 +11,13 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wallet.boot.WalletApplication;
 import com.wallet.common.ErrorCode;
 import com.wallet.common.exception.BusinessException;
 import com.wallet.member.domain.WithdrawalReasonType;
@@ -46,8 +45,7 @@ import com.wallet.member.dto.MemberWithdrawRequest;
  * 테스트마다 롤백한다. MemberService.withdraw 자체도 @Transactional이지만
  * REQUIRED 전파라 이 테스트의 트랜잭션에 합류할 뿐, 별도 커밋이 일어나지 않는다.
  */
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:/spring/root-context.xml")
+@SpringBootTest(classes = WalletApplication.class)
 @Transactional
 class MemberWithdrawalIntegrationTest {
 
