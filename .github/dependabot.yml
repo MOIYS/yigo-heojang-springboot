@@ -3,6 +3,7 @@ version: 2
 updates:
   - package-ecosystem: "maven"
     directory: "/backend"
+    open-pull-requests-limit: 0   # Boot 4.1 완료 전까지 일시 중단
     schedule:
       interval: "weekly"
     groups:
@@ -20,6 +21,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/frontend"
+    open-pull-requests-limit: 0   # Boot 4.1 완료 전까지 일시 중단
     schedule:
       interval: "weekly"
     groups:
@@ -32,6 +34,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/api-test"
+    open-pull-requests-limit: 0   # Boot 4.1 완료 전까지 일시 중단
     schedule:
       interval: "weekly"
     groups:
@@ -44,6 +47,7 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/ai-server/chatbot"
+    open-pull-requests-limit: 0   # Boot 4.1 완료 전까지 일시 중단
     schedule:
       interval: "weekly"
     groups:
@@ -56,6 +60,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    open-pull-requests-limit: 0   # Boot 4.1 완료 전까지 일시 중단
     schedule:
       interval: "weekly"
     groups:
