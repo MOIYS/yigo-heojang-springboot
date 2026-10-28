@@ -22,7 +22,7 @@
         <mybatis.spring.version>3.0.6</mybatis.spring.version>
         <jjwt.version>0.11.5</jjwt.version>
         <!-- Issue #44 승인 조건: 호환성 범위를 좁히기 위해 현행 버전을 유지한다. -->
-        <mysql.connector.version>8.4.0</mysql.connector.version>
+        <mysql.connector.version>26.10.0</mysql.connector.version>
         <jedis.version>5.2.0</jedis.version>
     </properties>
 
