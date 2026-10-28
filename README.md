@@ -15,29 +15,35 @@
 
 ## DB 세팅
 
-`backend/db/`의 SQL을 **번호 순서대로** 실행한다. 순서를 지켜야 하는 이유는 뒤 파일이 앞 파일이 만든 행을 참조하기 때문이다.
+테이블 구조는 애플리케이션 기동 시 Flyway가
+`backend/src/main/resources/db/migration/V1__init_schema.sql`을 적용해 생성한다.
+기존 수동 생성 DB는 baseline으로 등록하지 않으므로, 최초 전환 시 사용자가 DB를 직접 초기화해야 한다.
+초기화와 검증 명령은 [backend 실행 문서](backend/README.md#flyway-초기화)에 정리되어 있다.
+
+Flyway 적용이 끝난 뒤 `backend/db/`의 시드 SQL을 **번호 순서대로 수동 실행**한다.
+순서를 지켜야 하는 이유는 뒤 파일이 앞 파일이 만든 행을 참조하기 때문이다.
 
 | 순서 | 파일 | 내용 |
 | --- | --- | --- |
-| 1 | `schema.sql` | 테이블 정의 (기존 DB를 지우고 다시 만든다) |
-| 2 | `data.sql` | 회원·약관·카테고리·포인트사 등 기준 데이터 |
-| 3 | `91_seed_card_benefit.sql` | 카드·혜택·연회비 |
-| 4 | `92_seed_user_data.sql` | 보유카드·소비내역·계산 상태 |
-| 5 | `94_seed_membership_usage_place.sql` | 멤버십 주요 사용처·공식 사이트 URL |
+| 1 | `data.sql` | 회원·약관·카테고리·포인트사 등 기준 데이터 |
+| 2 | `91_seed_card_benefit.sql` | 카드·혜택·연회비 |
+| 3 | `92_seed_user_data.sql` | 보유카드·소비내역·계산 상태 |
+| 4 | `94_seed_membership_usage_place.sql` | 멤버십 주요 사용처·공식 사이트 URL |
 
 ```bash
 cd backend/db
-for f in schema.sql data.sql 91_seed_card_benefit.sql 92_seed_user_data.sql 94_seed_membership_usage_place.sql; do
+for f in data.sql 91_seed_card_benefit.sql 92_seed_user_data.sql 94_seed_membership_usage_place.sql; do
   mysql -u root -p <DB이름> < "$f"
 done
 ```
 
 ### pull 받은 뒤 화면이 비거나 500이 날 때
 
-**DB 스크립트를 다시 돌려야 한다.** 코드는 `git pull`로 따라오지만 DB는 각자 로컬에 있어 자동으로 바뀌지 않는다.
-컬럼이 늘어난 변경을 받고 스크립트를 안 돌리면 `Unknown column ...` 으로 API가 500을 내고, 화면은 빈 채로 보인다.
+애플리케이션 기동 로그에서 Flyway 마이그레이션 성공 여부를 먼저 확인한다.
+V1 전환 전에 수동으로 만든 테이블이 남아 있으면 baseline을 만들지 않고 기동을 중단하므로,
+개발 DB를 백업한 뒤 사용자가 직접 초기화해야 한다.
 
-전체를 다시 만들기 부담스러우면 바뀐 파일만 돌려도 된다. `9x_` 파일은 다시 실행해도 중복이 쌓이지 않게 만들어 두었다.
+시드 데이터만 갱신하려면 필요한 `9x_` 파일을 수동으로 실행한다. 해당 파일은 다시 실행해도 중복이 쌓이지 않게 만들어 두었다.
 
 ```bash
 mysql -u root -p <DB이름> < backend/db/94_seed_membership_usage_place.sql
@@ -54,10 +60,9 @@ app.image.storage-path=C:/Users/<사용자>/Desktop/wallet-images
 
 ### DB를 바꾸는 변경을 올릴 때
 
-- 컬럼 추가는 `schema.sql`에도 반영한다. 새로 세팅하는 사람이 스크립트를 따로 안 돌려도 되게 한다.
-- 기존 DB를 쓰는 사람을 위해 `9x_` 파일에도 `ALTER`를 넣되, 컬럼이 이미 있으면 건너뛰게 만든다.
-  MySQL 8에는 `ADD COLUMN IF NOT EXISTS`가 없어 `information_schema`로 직접 확인해야 한다
-  (예: `94_seed_membership_usage_place.sql`).
+- 스키마 변경은 `backend/src/main/resources/db/migration/`에 새 버전 마이그레이션으로 추가한다. 적용된 V1은 수정하지 않는다.
+- seed 파일에는 새 DDL을 추가하지 않는다. 기존 `94_seed_membership_usage_place.sql`의 호환용 ALTER 블록은
+  Flyway 이전 수동 스키마를 위한 레거시 처리이며, 새 스키마 변경의 기준으로 사용하지 않는다.
 - 시드에서 다른 테이블을 참조할 때는 **id가 아니라 이름으로** 찾는다. id는 DB마다 다르다 —
   실제로 개발 DB와 새로 만든 DB의 `point_provider` id가 2씩 어긋나 있었고, id로 적었을 때
   URL 18건이 에러 없이 엉뚱한 제공사에 들어갔다.

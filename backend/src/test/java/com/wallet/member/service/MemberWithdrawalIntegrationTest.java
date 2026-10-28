@@ -26,7 +26,7 @@ import com.wallet.member.dto.MemberWithdrawRequest;
 /**
  * 회원 탈퇴 경로의 MySQL 통합 테스트.
  *
- * 실 MySQL(docker-compose의 yigo-mysql, schema.sql·data.sql 적용 필요)에 연결한다.
+ * 실 MySQL(docker-compose의 yigo-mysql, Flyway V1·data.sql 적용 필요)에 연결한다.
  * SettlementServiceIntegrationTest와 동일하게 H2는 쓰지 않는다.
  *
  * MemberServiceTest(단위 테스트)는 매퍼를 전부 mock으로 대체해
@@ -227,7 +227,7 @@ class MemberWithdrawalIntegrationTest {
 
     private void insertFixture() {
         /*
-         * CI는 schema.sql만 적용하고 data.sql은 넣지 않아, 시드를 조회하면
+         * CI는 Flyway V1만 적용하고 data.sql은 넣지 않아, 시드를 조회하면
          * 로컬에서는 통과하고 CI에서만 EmptyResultDataAccessException으로 깨진다.
          *
          * 주의: term_code에 UNIQUE 제약(uk_term_code)이 있어서, data.sql이

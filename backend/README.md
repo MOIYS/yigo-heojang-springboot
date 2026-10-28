@@ -22,6 +22,38 @@ Boot Config Data import로 전환하지 않으며 필수 JWT Secret 누락 시 �
 
 Bean 목록 diff와 실행 검증 내역은 [Java Config 이관 결과](docs/java-config-migration.md)에 기록했다.
 
+## Flyway 초기화
+
+Flyway 11은 애플리케이션 기동 시 `src/main/resources/db/migration`의 버전 마이그레이션을 실행한다.
+V1은 빈 `wallet` DB만 대상으로 하며 기존 수동 생성 DB를 baseline으로 등록하지 않는다.
+`baseline-on-migrate`를 활성화하지 않는다. `db/` 아래의 seed SQL은 Flyway 대상이 아니며 계속 수동으로 적재한다.
+
+기존 Docker DB를 V1부터 다시 만들 때는 필요한 데이터를 먼저 별도로 백업한다. 다음 초기화는 되돌릴 수 없으므로
+Codex가 대신 실행하지 않으며 사용자가 본인 터미널에서 직접 수행한다.
+
+```powershell
+cd backend
+docker compose stop backend
+docker exec yigo-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS wallet; CREATE DATABASE wallet CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"'
+```
+
+초기화 후 새 JAR로 backend를 기동하면 Flyway가 V1을 적용한다.
+
+```powershell
+./mvnw.cmd clean package
+docker compose up -d --force-recreate backend
+docker logs yigo-backend
+```
+
+다음 읽기 전용 명령으로 V1 기록과 핵심 구조를 확인한다.
+
+```powershell
+docker exec yigo-mysql sh -c 'mysql -N -B -uroot -p"$MYSQL_ROOT_PASSWORD" wallet -e "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank; SELECT COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema=''wallet'' AND table_type=''BASE TABLE''; SELECT COUNT(*) AS foreign_key_count FROM information_schema.referential_constraints WHERE constraint_schema=''wallet'';"'
+```
+
+기대 결과는 성공한 V1 한 건, 애플리케이션 테이블 47개에 `flyway_schema_history`를 더한 총 48개,
+외래 키 71개다. 이후 루트 README의 순서대로 seed SQL을 수동 적재한다.
+
 ## 로컬 실행 JAR 실행
 
 PowerShell에서 예제 설정을 복사하고 로컬 환경에 맞는 값을 입력한다.
