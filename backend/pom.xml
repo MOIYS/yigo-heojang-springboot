@@ -18,9 +18,9 @@
 
     <properties>
         <java.version>21</java.version>
-        <mybatis.version>3.5.16</mybatis.version>
+        <mybatis.version>3.6.0</mybatis.version>
         <mybatis.spring.version>3.0.6</mybatis.spring.version>
-        <jjwt.version>0.11.5</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <!-- Issue #44 승인 조건: 호환성 범위를 좁히기 위해 현행 버전을 유지한다. -->
         <mysql.connector.version>8.4.0</mysql.connector.version>
         <jedis.version>5.2.0</jedis.version>
@@ -134,7 +134,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.13</version>
+                <version>0.8.15</version>
                 <executions>
                     <execution>
                         <goals>
