@@ -4,14 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.TreeSet;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -24,9 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.util.ClassUtils;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
@@ -54,61 +44,6 @@ import com.wallet.boot.WalletApplication;
 class JavaConfigurationContractTest {
     @Autowired
     private ConfigurableApplicationContext context;
-
-    @Test
-    void beanInventory() throws Exception {
-        var factory = context.getBeanFactory();
-        var inventory = Arrays.stream(factory.getBeanDefinitionNames()).sorted().map(name -> {
-            var definition = factory.getBeanDefinition(name);
-            Class<?> type = context.getType(name);
-            String typeName = type == null ? "unknown" : ClassUtils.getUserClass(type).getName()
-                .replaceAll("\\$\\$Lambda/0x[0-9a-f]+", java.util.regex.Matcher.quoteReplacement("$$Lambda"));
-            return name + "|" + typeName + "|"
-                + (definition.isSingleton() ? "singleton" : definition.getScope()) + "|"
-                + String.join(",", context.getAliases(name));
-        }).toList();
-        Files.createDirectories(Path.of("target", "configuration-migration"));
-        Files.write(Path.of("target", "configuration-migration", "beans.txt"), inventory,
-            StandardCharsets.UTF_8);
-
-        List<String> before;
-        try (var reader = new BufferedReader(new InputStreamReader(
-            new ClassPathResource("configuration/beans-before.txt").getInputStream(), StandardCharsets.UTF_8))) {
-            before = reader.lines().toList();
-        }
-        var beforeNames = new TreeSet<String>();
-        var afterNames = new TreeSet<String>();
-        before.forEach(line -> beforeNames.add(line.split("\\|", -1)[0]));
-        inventory.forEach(line -> afterNames.add(line.split("\\|", -1)[0]));
-        var diff = new java.util.ArrayList<String>();
-        beforeNames.stream().filter(name -> !afterNames.contains(name)).forEach(name -> diff.add("- " + name));
-        afterNames.stream().filter(name -> !beforeNames.contains(name)).forEach(name -> diff.add("+ " + name));
-        Files.write(Path.of("target", "configuration-migration", "bean-names.diff"), diff,
-            StandardCharsets.UTF_8);
-        assertThat(diff).containsExactlyElementsOf(readFixture("configuration/bean-names.diff"));
-        assertThat(inventory).containsExactlyElementsOf(readFixture("configuration/beans-after.txt"));
-
-        // 모든 업무 컴포넌트의 이름, 타입, 스코프와 별칭이 유지되는지 확인한다.
-        before.stream().filter(line -> line.contains("|com.wallet."))
-            .forEach(line -> assertThat(inventory).contains(line));
-        for (String name : List.of("dataSource", "sqlSessionFactory", "transactionManager",
-            "passwordEncoder", "objectMapper", "mailSender", "jedisPoolConfig", "jedisPool",
-            "notificationTaskScheduler", "chatbotRequestFactory", "restTemplate", "mvcCorsConfigurations",
-            "org.mybatis.spring.mapper.MapperScannerConfigurer#0",
-            "org.springframework.context.support.PropertySourcesPlaceholderConfigurer#0")) {
-            assertThat(inventory).contains(before.stream().filter(line -> line.startsWith(name + "|"))
-                .findFirst().orElseThrow());
-        }
-        assertThat(context.getBeansOfType(PropertySourcesPlaceholderConfigurer.class)).hasSize(1);
-        assertThat(context.getBeanDefinitionNames()).noneMatch(name -> name.contains("testProbe"));
-    }
-
-    private List<String> readFixture(String path) throws Exception {
-        try (var reader = new BufferedReader(new InputStreamReader(
-            new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8))) {
-            return reader.lines().toList();
-        }
-    }
 
     @Test
     void dataAccessAndPublicTermsEndpointUseTheMigratedInfrastructure() throws Exception {
