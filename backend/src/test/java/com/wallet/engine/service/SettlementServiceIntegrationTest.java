@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 정산(가산·취소) 경로의 MySQL 통합 테스트.
  *
- * 실 MySQL(docker-compose의 yigo-mysql, schema.sql 적용 필요)에 연결한다. H2는 쓰지 않는다 —
+ * 실 MySQL(docker-compose의 yigo-mysql, Flyway V1 적용 필요)에 연결한다. H2는 쓰지 않는다 —
  * ON DUPLICATE KEY UPDATE·GREATEST 같은 MySQL 구문과 CHECK 제약이 방언 차이로 뜨지 않기 때문이다.
  *
  * 검증하는 것은 계산 공식이 아니라(그건 단위 테스트가 덮는다) '상태 쓰기 SQL과 역산의 정확성'이다:

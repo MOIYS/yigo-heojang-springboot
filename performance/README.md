@@ -12,7 +12,8 @@ Issue #11의 Spring 전환 전 Legacy WAR 읽기 API 기준선입니다. 운영 
 
 - k6가 PATH에 설치되어 있어야 합니다.
 - Spring Boot 실행 JAR가 `http://localhost:8080`에서 실행 중이어야 합니다.
-- MySQL 8.0에 `backend/db/schema.sql`, `data.sql`, `91_seed_card_benefit.sql`이 적용되어 있어야 합니다.
+- MySQL 8.0에 Flyway V1(`backend/src/main/resources/db/migration/V1__init_schema.sql`)과
+  `backend/db/data.sql`, `91_seed_card_benefit.sql`이 적용되어 있어야 합니다.
 - MySQL은 운영 데이터와 분리된 성능 측정용 DB여야 합니다.
 - 성능 계정 20개가 함께 사용할 로컬 전용 비밀번호를 준비합니다.
 

@@ -230,7 +230,7 @@ class UserSeedReplayTest {
                 -- 적용 혜택·할인액·월 실적·한도 소진이 엔진 규칙과 어긋날 수 없다.
                 -- 값을 손으로 바꾸면 그 보장이 사라진다 — 시나리오를 고치고 다시 생성해라.
                 --
-                -- 실행 순서: schema.sql → data.sql → 91_seed_card_benefit.sql → 이 파일
+                -- 실행 순서: Flyway V1 → data.sql → 91_seed_card_benefit.sql → 이 파일
                 -- ============================================================
 
                 SET NAMES utf8mb4;

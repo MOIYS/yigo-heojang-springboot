@@ -82,6 +82,16 @@
             <artifactId>HikariCP</artifactId>
         </dependency>
 
+        <!-- 빈 DB의 스키마는 Flyway가 classpath:db/migration에서 초기화한다. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
         <!-- MySQL 8 드라이버 (com.mysql.cj.jdbc.Driver) -->
         <dependency>
             <groupId>com.mysql</groupId>

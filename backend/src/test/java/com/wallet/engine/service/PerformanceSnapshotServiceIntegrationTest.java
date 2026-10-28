@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 전월실적 경로(조회 매퍼 → 계산기 → 구간 판정)의 MySQL 통합 테스트.
  *
- * 실 MySQL(docker-compose의 yigo-mysql, schema.sql 적용 필요)에 연결한다. H2는 쓰지 않는다 —
+ * 실 MySQL(docker-compose의 yigo-mysql, Flyway V1 적용 필요)에 연결한다. H2는 쓰지 않는다 —
  * user_card의 생성 컬럼·benefit의 CHECK 제약이 방언 차이로 뜨지 않기 때문이다.
  *
  * 검증하는 것은 계산 총액이 아니라 '매퍼 SQL과 경계 변환의 정확성'이다:

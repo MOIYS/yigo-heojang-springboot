@@ -17,13 +17,13 @@
 - `src/test/java/com/yigoheojang/testprobe/BootWebRuntimeContractIntegrationTest.java`: 테스트 메서드의 XML 명칭 수정.
 - `README.md`, `pom.xml`: 설정 방식 설명 수정. 의존성과 버전 변경 없음.
 
-추가한 검증 파일:
+추가한 검증 파일(Bean 목록은 현재 문서 자료로 이동):
 
 - `src/test/java/com/yigoheojang/configuration/JavaConfigurationContractTest.java`
 - `src/test/java/com/yigoheojang/configuration/PropertyLoadingContractTest.java`
-- `src/test/resources/configuration/beans-before.txt`
-- `src/test/resources/configuration/beans-after.txt`
-- `src/test/resources/configuration/bean-names.diff`
+- `docs/java-config-migration/beans-before.txt`
+- `docs/java-config-migration/beans-after.txt`
+- `docs/java-config-migration/bean-names.diff`
 - `src/test/resources/configuration/properties/{db-fixture,redis-fixture,jwt-first,jwt-second}.properties`
 - 이 보고서 `docs/java-config-migration.md`
 
@@ -99,12 +99,13 @@ Java Config는 독립 비교 컨텍스트에서 먼저 확인하고, 최종 Wall
 테스트 전용 probe 설정은 두 목록 모두 포함하지 않았다.
 
 목록 형식은 `name|type|scope|aliases`다. CGLIB 클래스는 사용자 클래스로 환원하고 JVM마다 달라지는
-lambda 메모리 주소만 제거했다. 최종 테스트는 전체 after 목록과 이름 diff를 고정 fixture와 비교한다.
-각 실행의 실제 목록·diff는 target/configuration-migration에도 생성된다.
+lambda 메모리 주소만 제거했다. 이관 당시 일회성 검증에서는 전체 after 목록과 이름 diff를 고정
+목록과 비교했고, 각 실행의 실제 목록·diff를 target/configuration-migration에도 생성했다.
+이관 완료 후 전체 목록 exact match 테스트는 제거하고 세 목록은 이관 근거 자료로 이동했다.
 
-- 전체 이전 목록: `src/test/resources/configuration/beans-before.txt`
-- 전체 이후 목록: `src/test/resources/configuration/beans-after.txt`
-- 전체 이름 diff: `src/test/resources/configuration/bean-names.diff`
+- 전체 이전 목록: `docs/java-config-migration/beans-before.txt`
+- 전체 이후 목록: `docs/java-config-migration/beans-after.txt`
+- 전체 이름 diff: `docs/java-config-migration/bean-names.diff`
   결과: 이름 10개 제거, 22개 추가. 기존 애플리케이션 컴포넌트 Bean과 명시적 설정 Bean의 이름·타입·scope 유지.
 - 공통 이름에서 달라진 메타데이터는 antPathMatcher의 mvcPathMatcher alias 하나뿐이다.
   이후에는 mvcPathMatcher가 별도 정의이며 같은 AntPathMatcher 인스턴스를 반환함을 검증한다.
@@ -213,8 +214,8 @@ curl.exe http://localhost:8080/api/terms
 ## 유지 여부와 검증 범위
 
 검증한 API·데이터 접근·인증·알림·CORS·JSON·설정 우선순위 계약은 유지된다. 남는 차이는 위에
-기록한 Java MVC 인프라 정의 이름과 구성 방식이다. 기본 profile/현재 의존성 버전의 Bean 전체
-snapshot이므로 향후 프레임워크 변경 시에는 fixture diff를 검토해야 한다. 장시간 부하 기준선은
+기록한 Java MVC 인프라 정의 이름과 구성 방식이다. 기본 profile/당시 의존성 버전의 Bean 전체
+snapshot이며 이관 근거 자료로 보존한다. 장시간 부하 기준선은
 이번 범위가 아니며 k6는 smoke만 실행했다. 라이브 SMTP 서버로 메일을 보내는 검증도 수행하지 않았다.
 
 Maven의 중복 org.json/테스트 에이전트 경고와 Newman의 Node deprecation 경고는 남아 있다.

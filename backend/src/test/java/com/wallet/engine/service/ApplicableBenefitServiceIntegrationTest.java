@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   ④ 혜택이 없는 카드도 목록에서 빠지지 않는다
  *
  * 카테고리·가맹점·카드사까지 전부 직접 넣고 롤백한다. 시드에서 찾아 쓰면 시드가 없는
- * 환경(CI는 schema.sql만 적재한다)에서 깨진다.
+ * 환경(CI는 Flyway V1만 적용한다)에서 깨진다.
  */
 @SpringBootTest(classes = WalletApplication.class)
 @Transactional

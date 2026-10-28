@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 추천 경로(조회 매퍼 → 조립 → 계산기 → 순위)의 MySQL 통합 테스트.
  *
- * 실 MySQL(docker-compose의 yigo-mysql, schema.sql 적용 필요)에 연결한다. H2는 쓰지 않는다 —
+ * 실 MySQL(docker-compose의 yigo-mysql, Flyway V1 적용 필요)에 연결한다. H2는 쓰지 않는다 —
  * benefit의 CHECK 제약·user_card의 생성 컬럼이 방언 차이로 뜨지 않기 때문이다.
  *
  * 검증하는 것은 계산 공식이 아니라(그건 단위 테스트가 덮는다) '매퍼 SQL과 조립의 정확성'이다:
