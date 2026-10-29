@@ -42,7 +42,7 @@
               "script": {
                 "exec": [
                   "pm.test('200과 공통 성공 응답을 반환한다', function () {",
-                  "  pm.response.to.have.status(200);",
+                  "  pm.response.to.have.status(299);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.success).to.eql(true);",
                   "  pm.expect(body.code).to.eql('SUCCESS');",
