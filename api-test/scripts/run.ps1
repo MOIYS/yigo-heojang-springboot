@@ -121,17 +121,37 @@ LIMIT 1;
     $notificationReadTitle = "NEWMAN_READ_$runId"
     $notificationDeleteTitle = "NEWMAN_DELETE_$runId"
 
-    & node $newmanPath run $collectionPath `
-        --environment $environmentPath `
-        --env-var "baseUrl=$BaseUrl" `
-        --env-var "runId=$runId" `
-        --env-var "memberEmail=$memberEmail" `
-        --env-var "signupEmail=$signupEmail" `
-        --env-var "signupVerificationToken=$signupVerificationToken" `
-        --env-var "cardNumber=$cardNumber" `
-        --env-var "notificationReadTitle=$notificationReadTitle" `
-        --env-var "notificationDeleteTitle=$notificationDeleteTitle" `
-        --reporters cli
+    $newmanArguments = @(
+        $newmanPath,
+        'run',
+        $collectionPath,
+        '--environment', $environmentPath,
+        '--env-var', "baseUrl=$BaseUrl",
+        '--env-var', "runId=$runId",
+        '--env-var', "memberEmail=$memberEmail",
+        '--env-var', "signupEmail=$signupEmail",
+        '--env-var', "signupVerificationToken=$signupVerificationToken",
+        '--env-var', "cardNumber=$cardNumber",
+        '--env-var', "notificationReadTitle=$notificationReadTitle",
+        '--env-var', "notificationDeleteTitle=$notificationDeleteTitle"
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:NEWMAN_JSON_REPORT_PATH)) {
+        $newmanArguments += @('--reporters', 'cli')
+    }
+    else {
+        $jsonReportDirectory = Split-Path -Parent $env:NEWMAN_JSON_REPORT_PATH
+        if (-not [string]::IsNullOrWhiteSpace($jsonReportDirectory)) {
+            [void](New-Item -ItemType Directory -Path $jsonReportDirectory -Force)
+        }
+
+        $newmanArguments += @(
+            '--reporters', 'cli,json',
+            '--reporter-json-export', $env:NEWMAN_JSON_REPORT_PATH
+        )
+    }
+
+    & node @newmanArguments
 
     if ($LASTEXITCODE -ne 0) {
         throw "Newman 회귀 테스트가 실패했습니다. exitCode=$LASTEXITCODE"
