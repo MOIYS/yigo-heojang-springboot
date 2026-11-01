@@ -4,7 +4,8 @@ param(
     [string]$DbContainer = $(if ($env:DB_CONTAINER) { $env:DB_CONTAINER } else { 'yigo-mysql' }),
     [string]$DbName = $(if ($env:DB_NAME) { $env:DB_NAME } else { 'wallet' }),
     [string]$DbUser = $env:DB_USER,
-    [string]$DbPassword = $env:DB_PASSWORD
+    [string]$DbPassword = $env:DB_PASSWORD,
+    [string[]]$Folder = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -107,6 +108,7 @@ INNER JOIN card_company cc ON cc.card_company_id = c.card_company_id
 WHERE mc.is_active = 'Y'
   AND c.is_active = 'Y'
   AND cc.is_active = 'Y'
+  AND c.image_url IS NULL
 ORDER BY mc.mock_card_id
 LIMIT 1;
 '@
@@ -135,6 +137,13 @@ LIMIT 1;
         '--env-var', "notificationReadTitle=$notificationReadTitle",
         '--env-var', "notificationDeleteTitle=$notificationDeleteTitle"
     )
+
+    foreach ($selectedFolder in $Folder) {
+        if ([string]::IsNullOrWhiteSpace($selectedFolder)) {
+            throw 'Folder에는 비어 있지 않은 Newman 폴더 또는 요청 이름을 지정해야 합니다.'
+        }
+        $newmanArguments += @('--folder', $selectedFolder)
+    }
 
     if ([string]::IsNullOrWhiteSpace($env:NEWMAN_JSON_REPORT_PATH)) {
         $newmanArguments += @('--reporters', 'cli')
