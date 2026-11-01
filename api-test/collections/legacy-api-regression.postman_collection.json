@@ -363,13 +363,24 @@
           "name": "카드 목록 조회",
           "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/user-cards" },
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('등록 카드가 목록에 포함된다', function () {",
+            "pm.test('Jackson 3 전환 감시: user-cards 성공 래퍼의 현재 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(200);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(true);",
+            "  pm.expect(body.code).to.eql('SUCCESS');",
+            "  pm.expect(body.message).to.eql('보유 카드 목록 조회에 성공했습니다.');",
+            "  pm.expect(body).to.have.property('data');",
+            "});",
+            "",
+            "pm.test('Jackson 3 날짜·null 감시: 등록 카드 목록의 현재 JSON 계약을 유지한다', function () {",
             "  pm.response.to.have.status(200);",
             "  const data = pm.response.json().data;",
             "  pm.expect(data.userCards).to.be.an('array');",
             "  pm.expect(data.totalCount).to.eql(data.userCards.length);",
             "  const item = data.userCards.find(card => String(card.userCardId) === pm.collectionVariables.get('userCardId'));",
             "  pm.expect(item).not.to.eql(undefined);",
+            "  pm.expect(item).to.have.property('imageUrl');",
+            "  pm.expect(item.imageUrl).to.eql(null);",
             "  pm.expect(Array.isArray(item.registeredAt)).to.eql(true);",
             "  pm.expect(item.registeredAt.length).to.be.within(5, 7);",
             "  pm.expect(item.registeredAt.every(Number.isInteger)).to.eql(true);",
@@ -467,6 +478,13 @@
             "  pm.expect(Array.isArray(readItem.createdAt)).to.eql(true);",
             "  pm.expect(readItem.createdAt.length).to.be.within(5, 7);",
             "  pm.expect(readItem.createdAt.every(Number.isInteger)).to.eql(true);",
+            "});",
+            "",
+            "pm.test('Jackson 3 enum 감시: notificationType은 현재 enum name 문자열이다', function () {",
+            "  const notifications = pm.response.json().data.notifications;",
+            "  const readItem = notifications.find(item => item.title === pm.variables.get('notificationReadTitle'));",
+            "  pm.expect(readItem).not.to.eql(undefined);",
+            "  pm.expect(readItem.notificationType).to.eql('BENEFIT_LIMIT');",
             "});"
           ] } }]
         },
@@ -550,6 +568,132 @@
             "  const body = pm.response.json();",
             "  pm.expect(body.success).to.eql(false);",
             "  pm.expect(body.code).to.eql('REFRESH_TOKEN_FAILED');",
+            "});"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "06 Request and Error Contracts",
+      "item": [
+        {
+          "name": "[Jackson 3] 미지정 필드 허용 - FAIL_ON_UNKNOWN_PROPERTIES",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{memberEmail}}\",\n  \"password\": \"wrong-password\",\n  \"jackson3UnknownField\": true\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Jackson 3 변경 예측: FAIL_ON_UNKNOWN_PROPERTIES=false인 현재 요청 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(401);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('LOGIN_CREDENTIAL_MISMATCH');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "[Jackson 3] 잉여 토큰 허용 - FAIL_ON_TRAILING_TOKENS",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{memberEmail}}\",\n  \"password\": \"wrong-password\"\n}\n{\"unexpectedTrailingToken\": true}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Jackson 3 변경 예측: FAIL_ON_TRAILING_TOKENS=false인 현재 요청 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(401);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('LOGIN_CREDENTIAL_MISMATCH');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "[Jackson 3] 잘못된 JSON 역직렬화 실패",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{memberEmail}}\",\n  \"password\": \"password\"" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "// 현재 HttpMessageNotReadableException이 일반 예외 처리기로 전달되어 500이 되는 바람직하지 않은 동작을 고정한다.",
+            "pm.test('Jackson 3 변경 예측: 잘못된 JSON의 현재 HTTP 에러 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(500);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('SERVER_INTERNAL_ERROR');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "[baseline] 인증 필터 - user-cards 토큰 없음",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/user-cards"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('현재 동작 기준선 / 변경 근거 문서 없음: 인증 필터 에러 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(401);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('ACCESS_TOKEN_INVALID');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "[baseline] 회원가입 Bean Validation 실패",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{signupEmail}}\",\n  \"password\": \"\",\n  \"name\": \"Newman Validation Baseline\",\n  \"signupVerificationToken\": \"{{signupVerificationToken}}\",\n  \"termsAgreements\": [\n    {\n      \"termsVersionId\": 1,\n      \"agreed\": true\n    }\n  ]\n}" },
+            "url": "{{baseUrl}}/api/auth/signup"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('현재 동작 기준선 / 변경 근거 문서 없음: Bean Validation 에러 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(400);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('INPUT_INVALID');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "[baseline] CORS 허용 Origin preflight",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "OPTIONS",
+            "header": [
+              { "key": "Origin", "value": "http://localhost:5173" },
+              { "key": "Access-Control-Request-Method", "value": "GET" },
+              { "key": "Access-Control-Request-Headers", "value": "Authorization, Content-Type" }
+            ],
+            "url": "{{baseUrl}}/api/terms"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('현재 동작 기준선 / 변경 근거 문서 없음: 허용 Origin preflight 계약을 유지한다', function () {",
+            "  pm.response.to.have.status(200);",
+            "  pm.expect(pm.response.text()).to.eql('');",
+            "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('http://localhost:5173');",
+            "  const methods = pm.response.headers.get('Access-Control-Allow-Methods').split(',').map(value => value.trim());",
+            "  pm.expect(methods).to.eql(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);",
+            "  const headers = pm.response.headers.get('Access-Control-Allow-Headers').split(',').map(value => value.trim()).sort();",
+            "  pm.expect(headers).to.eql(['Authorization', 'Content-Type'].sort());",
+            "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.eql('true');",
+            "  pm.expect(pm.response.headers.get('Access-Control-Max-Age')).to.eql('1800');",
             "});"
           ] } }]
         }

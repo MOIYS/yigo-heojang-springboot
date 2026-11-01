@@ -9,6 +9,8 @@
 - 카드 등록·목록·상세·삭제 및 대표카드
 - 알림 목록·읽음·삭제
 - 대표 실패 응답: 인증 누락, 잘못된 로그인, 존재하지 않는 카드·알림
+- Jackson 요청 역직렬화: 미지정 필드, 잉여 토큰, 잘못된 JSON
+- 현재 인증 필터, Bean Validation, CORS preflight 에러·헤더 기준선
 - 현재 레거시 Refresh Token 비회전·재사용 동작
 - 현재 레거시 Health 인증 동작
 
@@ -77,6 +79,13 @@ cd api-test
 npm test
 ```
 
+특정 Newman 폴더나 요청만 실행할 때는 `-Folder`를 전달한다. 여러 값을 지정하면 각 값이 Newman의 `--folder` 인자로 전달된다.
+
+```powershell
+npm test -- -Folder "06 Request and Error Contracts"
+npm test -- -Folder "[baseline] 인증 필터 - user-cards 토큰 없음"
+```
+
 로그인처럼 이후 요청 전체의 전제 조건인 요청이 실패하면 collection은 즉시 중단한다. 빈 Access Token과 빈 동적 ID로 나머지 요청을 실행해 같은 원인의 401을 반복 보고하지 않는다.
 
 실행기는 다음 순서를 보장한다.
@@ -105,6 +114,8 @@ npm test
 - ID는 양수 숫자인지 확인하고 이후 요청에서 캡처한 값을 사용한다.
 - JWT는 값 비교 대신 세 개의 Base64URL segment 형식과 존재 여부를 검사한다.
 - 현재 레거시 MVC는 `LocalDateTime`을 ISO 문자열이 아니라 `[year, month, day, hour, minute, second?, nano?]` 배열로 직렬화한다. 시각 값 자체는 고정하지 않고 5~7개의 정수 배열 형식만 검사한다.
+- Jackson 3 변경 예측 요청은 현재 `FAIL_ON_UNKNOWN_PROPERTIES=false`, `FAIL_ON_TRAILING_TOKENS=false` 동작과 잘못된 JSON의 현재 에러 응답을 고정한다.
+- 인증 필터, Bean Validation, CORS preflight는 변경 근거 문서가 없는 현재 동작 기준선으로 구분한다.
 - 204 응답은 빈 본문을 검사한다.
 - 확인된 상태 코드와 오류 코드는 정확히 검사한다.
 - 실행마다 달라지는 Token, ID, 시각 및 수치 기록은 저장하지 않는다.
