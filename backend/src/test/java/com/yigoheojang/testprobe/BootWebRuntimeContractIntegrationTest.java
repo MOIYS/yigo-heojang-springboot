@@ -14,10 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpEntity;
@@ -37,6 +38,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import com.wallet.auth.filter.JwtAuthenticationFilter;
 import com.wallet.boot.WalletApplication;
 
+@AutoConfigureTestRestTemplate
 @SpringBootTest(
     classes = {
         WalletApplication.class,
@@ -112,28 +114,26 @@ class BootWebRuntimeContractIntegrationTest {
     }
 
     @Test
-    void preflightKeepsCorsContractAndTrailingSlashMatchingWithoutJwt() {
-        for (String path : List.of("/api/terms", "/api/terms/")) {
-            ResponseEntity<String> response = preflight(path, frontendOrigin);
+    void preflightKeepsCorsContractAndTrailingSlashPathDoesNotMatch() {
+        ResponseEntity<String> response = preflight("/api/terms", frontendOrigin);
 
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isNullOrEmpty();
-            assertThat(response.getHeaders().getAccessControlAllowOrigin()).isEqualTo(frontendOrigin);
-            assertThat(response.getHeaders().getAccessControlAllowMethods()).containsExactly(
-                HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT,
-                HttpMethod.PATCH, HttpMethod.DELETE, HttpMethod.OPTIONS
-            );
-            assertThat(response.getHeaders().getAccessControlAllowHeaders())
-                .containsExactlyInAnyOrder("Authorization", "Content-Type");
-            assertThat(response.getHeaders().getAccessControlAllowCredentials()).isTrue();
-            assertThat(response.getHeaders().getAccessControlMaxAge()).isEqualTo(1800);
-        }
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNullOrEmpty();
+        assertThat(response.getHeaders().getAccessControlAllowOrigin()).isEqualTo(frontendOrigin);
+        assertThat(response.getHeaders().getAccessControlAllowMethods()).containsExactly(
+            HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT,
+            HttpMethod.PATCH, HttpMethod.DELETE, HttpMethod.OPTIONS
+        );
+        assertThat(response.getHeaders().getAccessControlAllowHeaders())
+            .containsExactlyInAnyOrder("Authorization", "Content-Type");
+        assertThat(response.getHeaders().getAccessControlAllowCredentials()).isTrue();
+        assertThat(response.getHeaders().getAccessControlMaxAge()).isEqualTo(1800);
 
         ResponseEntity<String> trailingSlashResponse = restTemplate.getForEntity(
             "/test-only/date/",
             String.class
         );
-        assertThat(trailingSlashResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(trailingSlashResponse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @Test
@@ -141,7 +141,7 @@ class BootWebRuntimeContractIntegrationTest {
         ResponseEntity<String> response = preflight("/api/terms", "https://unallowed.example.invalid");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getHeaders()).doesNotContainKey(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)).isNull();
     }
 
     @Test

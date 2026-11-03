@@ -57,7 +57,6 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     public void configurePathMatch(PathMatchConfigurer configurer) {
         configurer.setPatternParser(null);
         configurer.setPathMatcher(antPathMatcher());
-        configurer.setUseTrailingSlashMatch(true);
     }
 
     @Override
