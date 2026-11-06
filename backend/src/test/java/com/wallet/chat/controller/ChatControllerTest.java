@@ -12,7 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import com.wallet.chat.dto.ChatRequest;
 import com.wallet.chat.dto.ChatResponse;
 import com.wallet.chat.service.ChatService;
@@ -23,8 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
@@ -42,14 +42,17 @@ class ChatControllerTest {
 
     private final ChatService chatService = mock(ChatService.class);
 
-    // Spring MVC가 실제로 쓰는 설정으로 만든다. new ObjectMapper()는 모르는 필드를 만나면
+    // Spring MVC가 실제로 쓰는 설정으로 만든다. 기본 JsonMapper는 모르는 필드를 만나면
     // 예외를 던지지만 MVC 기본값은 무시하고 넘어가, 그대로 쓰면 실제와 다른 동작을 검증하게 된다.
-    private final ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
+    private final JsonMapper objectMapper = JsonMapper.builder()
+        .configureForJackson2()
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        .build();
 
     private final MockMvc mockMvc = MockMvcBuilders
             .standaloneSetup(new ChatController(chatService))
             .setControllerAdvice(new GlobalExceptionHandler())
-            .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+            .setMessageConverters(new JacksonJsonHttpMessageConverter(objectMapper))
             .setValidator(validator())
             .build();
 

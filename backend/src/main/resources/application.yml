@@ -1,0 +1,25 @@
+spring:
+  jackson:
+    use-jackson2-defaults: true
+    datatype:
+      datetime:
+        # Jackson 2의 LocalDateTime 배열 표현과 월 값을 유지한다.
+        write-dates-as-timestamps: true
+        one-based-months: true
+      enum:
+        read-enums-using-to-string: false
+        write-enums-using-to-string: false
+    deserialization:
+      # 기존 요청 역직렬화 계약을 명시적으로 고정한다.
+      fail-on-unknown-properties: false
+      fail-on-trailing-tokens: false
+      fail-on-null-for-primitives: false
+    mapper:
+      # 기존 응답 필드 순서와 view 포함 정책을 유지한다.
+      sort-properties-alphabetically: false
+      default-view-inclusion: false
+  mvc:
+    formcontent:
+      filter:
+        # 수동 MVC 구성에는 없었던 요청 본문 변환 필터를 활성화하지 않는다.
+        enabled: false

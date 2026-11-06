@@ -2,7 +2,7 @@ package com.wallet.boot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.web.filter.CharacterEncodingFilter;
@@ -29,7 +29,7 @@ class WebFilterRegistrationTest {
 
     @Test
     void jwtFilterKeepsLegacyApiScopeDispatcherAndRunsAfterEncoding() {
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(null, new ObjectMapper(), null);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(null, JsonMapper.builder().build(), null);
         FilterRegistrationBean<JwtAuthenticationFilter> registration =
             configuration.jwtAuthenticationFilterRegistration(filter);
 

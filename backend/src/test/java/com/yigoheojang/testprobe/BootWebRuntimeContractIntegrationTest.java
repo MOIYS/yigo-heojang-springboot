@@ -3,16 +3,20 @@ package com.yigoheojang.testprobe;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import jakarta.servlet.FilterRegistration;
 import jakarta.servlet.ServletContext;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.cfg.EnumFeature;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -27,12 +31,21 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.ResourceHttpMessageConverter;
+import org.springframework.http.converter.ResourceRegionHttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
+import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.filter.CharacterEncodingFilter;
+import org.springframework.web.filter.FormContentFilter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 
 import com.wallet.auth.filter.JwtAuthenticationFilter;
@@ -68,23 +81,51 @@ class BootWebRuntimeContractIntegrationTest {
     private RequestMappingHandlerAdapter handlerAdapter;
 
     @Autowired
-    @Qualifier("objectMapper")
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
-    void onlyOneMvcConfigurationAndTheConfiguredObjectMapperDriveJsonResponses() throws Exception {
-        assertThat(applicationContext.getBeansOfType(WebMvcAutoConfiguration.class)).isEmpty();
+    void autoConfiguredJsonMapperIsSharedByMvcAndJwtFilter() throws Exception {
+        assertThat(applicationContext.getBeansOfType(WebMvcAutoConfiguration.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(JsonMapper.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(FormContentFilter.class)).isEmpty();
 
-        List<MappingJackson2HttpMessageConverter> jacksonConverters = handlerAdapter
+        assertThat(objectMapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isFalse();
+        assertThat(objectMapper.isEnabled(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)).isFalse();
+        assertThat(objectMapper.isEnabled(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)).isFalse();
+        assertThat(objectMapper.isEnabled(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)).isTrue();
+        assertThat(objectMapper.isEnabled(DateTimeFeature.ONE_BASED_MONTHS)).isTrue();
+        assertThat(objectMapper.isEnabled(EnumFeature.READ_ENUMS_USING_TO_STRING)).isFalse();
+        assertThat(objectMapper.isEnabled(EnumFeature.WRITE_ENUMS_USING_TO_STRING)).isFalse();
+        assertThat(objectMapper.isEnabled(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)).isFalse();
+        assertThat(objectMapper.isEnabled(MapperFeature.DEFAULT_VIEW_INCLUSION)).isFalse();
+
+        assertThat(handlerAdapter.getMessageConverters()).<Class<?>>extracting(Object::getClass).containsExactly(
+            ByteArrayHttpMessageConverter.class,
+            StringHttpMessageConverter.class,
+            ResourceHttpMessageConverter.class,
+            ResourceRegionHttpMessageConverter.class,
+            AllEncompassingFormHttpMessageConverter.class,
+            JacksonJsonHttpMessageConverter.class,
+            Jaxb2RootElementHttpMessageConverter.class
+        );
+        assertThat(((StringHttpMessageConverter) handlerAdapter.getMessageConverters().get(1))
+            .getDefaultCharset()).isEqualTo(StandardCharsets.UTF_8);
+
+        List<JacksonJsonHttpMessageConverter> jacksonConverters = handlerAdapter
             .getMessageConverters()
             .stream()
-            .filter(MappingJackson2HttpMessageConverter.class::isInstance)
-            .map(MappingJackson2HttpMessageConverter.class::cast)
+            .filter(JacksonJsonHttpMessageConverter.class::isInstance)
+            .map(JacksonJsonHttpMessageConverter.class::cast)
             .toList();
 
-        assertThat(jacksonConverters).isNotEmpty();
+        assertThat(jacksonConverters).hasSize(1);
         assertThat(jacksonConverters)
-            .allSatisfy(converter -> assertThat(converter.getObjectMapper()).isSameAs(objectMapper));
+            .allSatisfy(converter -> assertThat(converter.getMapper()).isSameAs(objectMapper));
+        assertThat(ReflectionTestUtils.getField(jwtAuthenticationFilter, "objectMapper"))
+            .isSameAs(objectMapper);
 
         ResponseEntity<String> response = restTemplate.getForEntity("/test-only/date", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -153,8 +194,44 @@ class BootWebRuntimeContractIntegrationTest {
         );
 
         assertThat(apiResponse.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(apiResponse.getBody()).contains("\"code\":\"ACCESS_TOKEN_INVALID\"");
+        assertThat(apiResponse.getHeaders().getContentType())
+            .isEqualTo(MediaType.parseMediaType("application/json;charset=UTF-8"));
+        assertThat(apiResponse.getBody()).isEqualTo(
+            "{\"success\":false,\"code\":\"ACCESS_TOKEN_INVALID\","
+                + "\"message\":\"유효하지 않은 엑세스 토큰입니다.\",\"data\":null}"
+        );
         assertThat(nonApiResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void jackson2RequestContractsAndMalformedJsonStatusArePreserved() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<String> compatible = restTemplate.postForEntity(
+            "/test-only/json",
+            new HttpEntity<>(
+                "{\"count\":null,\"mode\":\"ACTIVE\",\"unknown\":true} {\"ignored\":true}",
+                headers
+            ),
+            String.class
+        );
+        assertThat(compatible.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(compatible.getBody()).isEqualTo("{\"count\":0,\"mode\":\"ACTIVE\"}");
+
+        ResponseEntity<String> malformed = restTemplate.postForEntity(
+            "/test-only/json",
+            new HttpEntity<>("{\"count\":", headers),
+            String.class
+        );
+        assertThat(malformed.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    void unmatchedPathStillReturnsInternalServerError() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/test-only/not-found", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @Test
@@ -216,5 +293,20 @@ class BootWebRuntimeContractIntegrationTest {
         String encoding(@RequestParam String value) {
             return value;
         }
+
+        @PostMapping(
+            value = "/test-only/json",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+        )
+        JsonProbeRequest json(@RequestBody JsonProbeRequest request) {
+            return request;
+        }
+    }
+
+    record JsonProbeRequest(int count, ProbeMode mode) { }
+
+    enum ProbeMode {
+        ACTIVE
     }
 }

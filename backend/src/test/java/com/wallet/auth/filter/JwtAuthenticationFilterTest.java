@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
@@ -31,7 +31,11 @@ class JwtAuthenticationFilterTest {
     private final JwtTokenProvider jwtTokenProvider = mock(JwtTokenProvider.class);
     private final MemberMapper memberMapper = mock(MemberMapper.class);
     private final JwtAuthenticationFilter jwtAuthenticationFilter =
-        new JwtAuthenticationFilter(jwtTokenProvider, new ObjectMapper(), memberMapper);
+        new JwtAuthenticationFilter(
+            jwtTokenProvider,
+            JsonMapper.builder().configureForJackson2().build(),
+            memberMapper
+        );
 
     @Test
     @DisplayName("공개 경로 요청 - Access Token 없이 필터를 통과한다")
@@ -84,10 +88,11 @@ class JwtAuthenticationFilterTest {
 
         // then
         assertThat(response.getStatus()).isEqualTo(ErrorCode.ACCESS_TOKEN_INVALID.getStatus().value());
-        assertThat(response.getContentAsString(StandardCharsets.UTF_8))
-            .contains("\"success\":false")
-            .contains("\"code\":\"ACCESS_TOKEN_INVALID\"")
-            .contains("\"message\":\"" + ErrorCode.ACCESS_TOKEN_INVALID.getMessage() + "\"");
+        assertThat(response.getContentType()).isEqualTo("application/json;charset=UTF-8");
+        assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEqualTo(
+            "{\"success\":false,\"code\":\"ACCESS_TOKEN_INVALID\","
+                + "\"message\":\"" + ErrorCode.ACCESS_TOKEN_INVALID.getMessage() + "\",\"data\":null}"
+        );
 
         assertThat(filterChain.getRequest()).isNull();
 

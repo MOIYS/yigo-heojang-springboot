@@ -33,12 +33,6 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
-        <!-- #68에서는 기존 Jackson 2 수동 mapper와 MVC converter 계약을 유지한다. -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-jackson2</artifactId>
-        </dependency>
-
         <!-- 기존 암호화 API만 유지한다. Security Web/Starter는 도입하지 않는다. -->
         <dependency>
             <groupId>org.springframework.security</groupId>

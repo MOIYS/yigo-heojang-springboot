@@ -5,26 +5,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.zaxxer.hikari.HikariDataSource;
+
 import org.apache.ibatis.session.SqlSessionFactory;
-import org.mybatis.spring.SqlSessionFactoryBean;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.SqlSessionFactoryBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.validation.autoconfigure.ValidatorAdapter;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.ResourceRegionHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
+import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
@@ -34,11 +34,20 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.beanvalidation.OptionalValidatorFactoryBean;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.filter.FormContentFilter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.wallet.boot.WalletApplication;
+
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.cfg.EnumFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(classes = WalletApplication.class)
 class JavaConfigurationContractTest {
@@ -77,26 +86,40 @@ class JavaConfigurationContractTest {
     }
 
     @Test
-    void mvcUsesTheOriginalConverterOrderMapperAndPathMatcher() {
-        var mapper = context.getBean("objectMapper", ObjectMapper.class);
-        assertThat(context.getBean("&objectMapper")).isInstanceOf(Jackson2ObjectMapperFactoryBean.class);
+    void mvcUsesTheAutoConfiguredJsonMapperAndKeepsTheJsonContract() throws Exception {
+        var mapper = context.getBean(JsonMapper.class);
+        assertThat(context.getBeansOfType(JsonMapper.class)).hasSize(1);
         assertThat(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isFalse();
-        assertThat(mapper.isEnabled(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)).isTrue();
+        assertThat(mapper.isEnabled(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)).isFalse();
+        assertThat(mapper.isEnabled(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)).isFalse();
+        assertThat(mapper.isEnabled(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)).isTrue();
+        assertThat(mapper.isEnabled(DateTimeFeature.ONE_BASED_MONTHS)).isTrue();
+        assertThat(mapper.isEnabled(EnumFeature.READ_ENUMS_USING_TO_STRING)).isFalse();
+        assertThat(mapper.isEnabled(EnumFeature.WRITE_ENUMS_USING_TO_STRING)).isFalse();
+        assertThat(mapper.isEnabled(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)).isFalse();
+        assertThat(mapper.isEnabled(MapperFeature.DEFAULT_VIEW_INCLUSION)).isFalse();
         var converters = context.getBean(RequestMappingHandlerAdapter.class).getMessageConverters();
-        assertThat(converters).extracting(Object::getClass).containsExactly(
+        assertThat(converters).<Class<?>>extracting(Object::getClass).containsExactly(
             ByteArrayHttpMessageConverter.class, StringHttpMessageConverter.class,
             ResourceHttpMessageConverter.class, ResourceRegionHttpMessageConverter.class,
-            AllEncompassingFormHttpMessageConverter.class, MappingJackson2HttpMessageConverter.class);
+            AllEncompassingFormHttpMessageConverter.class, JacksonJsonHttpMessageConverter.class,
+            Jaxb2RootElementHttpMessageConverter.class);
         assertThat(((StringHttpMessageConverter) converters.get(1)).getDefaultCharset())
             .isEqualTo(StandardCharsets.UTF_8);
-        assertThat(((MappingJackson2HttpMessageConverter) converters.get(5)).getObjectMapper()).isSameAs(mapper);
+        assertThat(((JacksonJsonHttpMessageConverter) converters.get(5)).getMapper()).isSameAs(mapper);
         var mapping = context.getBean(RequestMappingHandlerMapping.class);
-        assertThat(mapping.getPatternParser()).isNull();
-        assertThat(mapping.getPathMatcher()).isSameAs(context.getBean("antPathMatcher"));
-        assertThat(context.getBean("mvcPathMatcher")).isSameAs(context.getBean("antPathMatcher"));
+        assertThat(mapping.getPatternParser()).isNotNull();
+        assertThat(context.getBeansOfType(FormContentFilter.class)).isEmpty();
         assertThat(context.containsBean("defaultValidator")).isFalse();
-        assertThat(context.getBean("mvcValidator"))
-            .isSameAs(context.getBean("org.springframework.validation.beanvalidation.OptionalValidatorFactoryBean#0"));
+        var adapter = context.getBean("mvcValidator", ValidatorAdapter.class);
+        assertThat(adapter.getTarget())
+            .isSameAs(context.getBean(OptionalValidatorFactoryBean.class));
+
+        var result = MockMvcBuilders.webAppContextSetup((WebApplicationContext) context).build()
+            .perform(get("/test-only/not-found"))
+            .andExpect(status().isInternalServerError())
+            .andReturn();
+        assertThat(result.getResolvedException()).isInstanceOf(NoResourceFoundException.class);
     }
 
     @Test
