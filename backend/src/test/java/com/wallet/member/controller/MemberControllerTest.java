@@ -18,14 +18,13 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.LocalDateTime;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -50,9 +49,11 @@ class MemberControllerTest {
     private final SimplePasswordService simplePasswordService =
         mock(SimplePasswordService.class);
 
-    private final ObjectMapper objectMapper = new ObjectMapper()
-        .registerModule(new JavaTimeModule())
-        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private final JsonMapper objectMapper = JsonMapper.builder()
+        .configureForJackson2()
+        .findAndAddModules()
+        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .build();
 
     private final MockMvc mockMvc = MockMvcBuilders
         .standaloneSetup(new MemberController(
@@ -62,7 +63,7 @@ class MemberControllerTest {
             simplePasswordService
         ))
         .setControllerAdvice(new GlobalExceptionHandler())
-        .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+        .setMessageConverters(new JacksonJsonHttpMessageConverter(objectMapper))
         .setValidator(validator())
         .build();
 

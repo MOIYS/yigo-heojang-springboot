@@ -3,7 +3,6 @@ package com.wallet.boot;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration;
-import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 
 /**
  * Spring Boot 실행 JAR 진입점.
@@ -14,7 +13,6 @@ import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 @SpringBootApplication(
     scanBasePackages = "com.wallet.boot",
     exclude = {
-        WebMvcAutoConfiguration.class,
         TransactionAutoConfiguration.class
     }
 )
