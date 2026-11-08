@@ -40,7 +40,7 @@ const emit = defineEmits(['click-item'])
         <div class="point-info">
           <p class="point-name">{{ point.name }}</p>
           <p class="point-balance">
-            {{ point.balance.toLocaleString() }} P
+            {{ point.point ? point.point.toLocaleString() : '0' }} P
           </p>
         </div>
       </article>

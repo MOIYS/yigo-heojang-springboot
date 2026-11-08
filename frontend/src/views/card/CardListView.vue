@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/authStore';
 import { useCardStore } from '@/stores/cardStore';
+import { updateCardRepresentative } from '@/api/walletApi';
 
 import PageHeader from '@/components/common/PageHeader.vue';
 import CardItem from '@/components/card/CardItem.vue';
@@ -48,8 +49,19 @@ const goRegister = () => {
 
 
 // 초기화
-onMounted(() => {
-  // mock 데이터는 추가하지 않음
+onMounted(async () => {
+  if (isLogin.value) {
+    try {
+      await cardStore.loadCards();
+      // 카드 스와이프 힌트 (처음 1회만)
+      if (!localStorage.getItem('cardListHintShown') && cards.value.length > 0) {
+        showToast('info', '💡 왼쪽으로 스와이프하면 카드를 고정할 수 있습니다');
+        localStorage.setItem('cardListHintShown', 'true');
+      }
+    } catch (error) {
+      console.error('카드 목록 로드 실패:', error);
+    }
+  }
 });
 
 
@@ -117,40 +129,28 @@ const cardCompanies = computed(() => {
 
 
 // 카드 고정
-const togglePin = (id) => {
-
-
-  const target = cards.value.find(
-
-    card => card.id === id
-
-  );
-
+const togglePin = async (id) => {
+  const target = cards.value.find(card => card.id === id);
 
   if (!target) return;
 
-
-  const pinnedCount =
-
-    cards.value.filter(
-
-      card => card.pinned
-
-    ).length;
-
-
+  const pinnedCount = cards.value.filter(card => card.pinned).length;
 
   if (!target.pinned && pinnedCount >= 3) {
-
     showToast('warning', '고정 카드는 최대 3개까지 가능합니다.');
-
     return;
-
   }
 
-
-  target.pinned = !target.pinned;
-
+  try {
+    // 백엔드에 고정 상태 저장
+    await updateCardRepresentative(id, !target.pinned);
+    // 성공하면 로컬 상태도 업데이트
+    target.pinned = !target.pinned;
+    showToast('success', target.pinned ? '카드를 고정했습니다.' : '고정을 해제했습니다.');
+  } catch (error) {
+    console.error('카드 고정 변경 실패:', error);
+    showToast('error', '카드 고정 변경에 실패했습니다.');
+  }
 };
 
 // 추천 카드 숨기기
@@ -200,9 +200,7 @@ const closeRecommendedCard = () => {
 
     <section v-if="pinnedCards.length > 0" class="card-section pinned-section">
 
-      <h2>
-        <Icon name="star-filled" size="sm" /> 고정 카드
-      </h2>
+      <h2>고정 카드</h2>
 
       <div class="pinned-cards-list">
         <CardItem
@@ -220,29 +218,25 @@ const closeRecommendedCard = () => {
 
     <!-- 전체 카드 (Grid Layout) -->
 
-    <section class="card-section all-cards-section">
+    <section class="card-section all-cards-section" id="card-list">
 
 
       <div class="all-cards-header">
         <h2>
           전체 카드
         </h2>
-        <button type="button" class="add-card-btn" @click="goRegister">
+        <button type="button" class="add-card-btn" id="card-register-button" @click="goRegister">
           + 카드 등록
         </button>
       </div>
 
 
       <CardCompanyGroup
-
-        v-for="company in cardCompanies"
-
+        v-for="(company, idx) in cardCompanies"
         :key="company.name"
-
         :company="company"
-
+        :class="{ 'company-group-divider': idx < cardCompanies.length - 1 }"
         @toggle-pin="togglePin"
-
       />
 
 
@@ -359,21 +353,15 @@ const closeRecommendedCard = () => {
 
 
 .all-cards-header {
-
   display: flex;
-
   align-items: center;
-
   justify-content: space-between;
-
   margin-bottom: var(--space-md);
-
 }
 
 .all-cards-header h2 {
-
   margin: 0;
-
+  color: var(--color-text-primary);
 }
 
 .add-card-btn {
@@ -412,28 +400,26 @@ const closeRecommendedCard = () => {
 
 
 .card-section {
-
   margin-bottom: var(--space-lg);
-
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
 }
 
-
 .pinned-section {
-
-  margin-top: -21px;
-
-  margin-bottom: var(--space-lg);
-
+  background: rgba(var(--color-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.15);
   display: flex;
-
   flex-direction: column;
-
 }
 
 .pinned-section h2 {
+  margin: 0 0 var(--space-md) 0;
+  color: var(--color-text-primary);
+}
 
-  align-self: flex-start;
-
+.all-cards-section {
+  background: rgba(var(--color-primary-rgb), 0.04);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.1);
 }
 
 
@@ -442,6 +428,13 @@ const closeRecommendedCard = () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+/* 카드사 그룹 구분선 */
+.company-group-divider {
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-md);
 }
 
 .card-section h2 {

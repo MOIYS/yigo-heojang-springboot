@@ -12,9 +12,11 @@ const showResult = ref(false);
 
 // 임시 OCR 결과
 // 실제 서비스에서는 OCR API 응답 데이터
+// 카드번호는 93_seed_mock_card.sql에 실제로 등록 가능하게 심어둔 번호여야
+// "등록 정보 사용" → "카드 등록"까지 눌렀을 때 CARD_NOT_SUPPORTED 없이 시연이 끝까지 성공한다.
 const scanResult = ref({
   cardName: 'KB My WE:SH 카드',
-  cardNumber: '1234567890121123',
+  cardNumber: '2228790000000016',
   expiryDate: '12/28',
 });
 
@@ -129,6 +131,11 @@ const complete = () => {
 .overlay {
   position: fixed;
   inset: 0;
+  width: 100%;
+  max-width: 480px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0 auto;
 
   background: rgba(0, 0, 0, 0.4);
 
@@ -141,12 +148,15 @@ const complete = () => {
 
 .modal {
   width: 90%;
+  max-width: 480px;
 
   background: var(--color-surface);
 
   border-radius: 24px;
 
   padding: 20px;
+
+  box-sizing: border-box;
 }
 
 .header {

@@ -51,6 +51,8 @@ const showCardList = ref(false);
 
 
 // 조회 조건
+// category(이름)는 화면 표시용, categoryId는 서버 전달용이다. 이름만 들고 있으면
+// 서버가 카테고리명을 바꿨을 때 필터가 조용히 깨진다.
 const filter = ref({
 
   approval: '승인',
@@ -58,6 +60,12 @@ const filter = ref({
   cardType: '전체',
 
   card: '전체',
+
+  cardId: null,
+
+  category: '전체',
+
+  categoryId: null,
 
   region: '전체',
 
@@ -70,6 +78,57 @@ const filter = ref({
   endDate: '',
 
 });
+
+
+
+
+// 소비 카테고리 목록 — 개인화 설정(관심 카테고리)과 같은 9개 축으로 맞춘다.
+// 서버 마스터(대분류 7 + 중분류 31)를 그대로 늘어놓으면 조회조건이 화면 한 장을 넘기고,
+// 개인화 화면과 기준이 달라 사용자가 같은 축으로 읽지 못한다.
+//
+// categoryId는 표시용이 아니라 실제 조회 조건이라 라벨이 가리키는 범위와 맞아야 한다.
+// 쇼핑·문화/여가·교통·의료는 중분류를 묶는 개념이라 대분류 ID를 보내고,
+// 서버가 하위 중분류 결제까지 매칭한다(TransactionMapper.selectTransactionList).
+//
+// 개인화 스토어(stores/personalization.js)는 "현장 결제 대표 중분류" 기준이라
+// 같은 라벨이라도 ID가 다르다. 라벨만 공유하고 ID는 각자의 용도를 따른다.
+const categories = [
+
+  { categoryId: 102, categoryName: '카페' },
+
+  { categoryId: 201, categoryName: '편의점' },
+
+  { categoryId: 101, categoryName: '음식점' },
+
+  { categoryId: 202, categoryName: '마트' },
+
+  { categoryId: 2, categoryName: '쇼핑' },
+
+  { categoryId: 205, categoryName: '뷰티' },
+
+  { categoryId: 5, categoryName: '문화/여가' },
+
+  { categoryId: 3, categoryName: '교통' },
+
+  { categoryId: 6, categoryName: '의료' },
+
+];
+
+
+// 카테고리 선택 — "전체"는 categoryId를 비워 서버 조건에서 아예 빠지게 한다.
+const selectCategory = (category) => {
+
+  if (!category) {
+    filter.value.category = '전체';
+    filter.value.categoryId = null;
+    return;
+  }
+
+  filter.value.category = category.categoryName;
+
+  filter.value.categoryId = category.categoryId;
+
+};
 
 
 
@@ -152,11 +211,31 @@ const periods = [
 
 
 // 카드 선택
+// 카드를 고르면 카드종류뿐 아니라 그 카드로도 걸러야 한다.
+// cardId를 안 넘기면 "신한 체크카드"를 골라도 체크카드 전부가 나온다.
 
 const selectCard = (card) => {
 
 
+  if (!card) {
+
+    filter.value.card = '전체';
+
+    filter.value.cardId = null;
+
+    filter.value.cardType = '전체';
+
+    showCardList.value = false;
+
+    return;
+
+  }
+
+
   filter.value.card = card.name;
+
+
+  filter.value.cardId = card.id;
 
 
   filter.value.cardType = card.type;
@@ -273,6 +352,12 @@ const reset = () => {
     cardType:'전체',
 
     card:'전체',
+
+    cardId:null,
+
+    category:'전체',
+
+    categoryId:null,
 
     region:'전체',
 
@@ -489,6 +574,26 @@ class="card-list"
 
 <button
 
+class="card-item"
+
+@click="selectCard(null)"
+
+>
+
+<div>
+
+<strong>
+전체
+</strong>
+
+</div>
+
+</button>
+
+
+
+<button
+
 v-for="card in props.cards"
 
 :key="card.id"
@@ -501,6 +606,8 @@ class="card-item"
 
 
 <img
+
+v-if="card.imageUrl"
 
 :src="card.imageUrl"
 
@@ -531,6 +638,69 @@ class="card-item"
 
 </div>
 
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<!-- 카테고리 -->
+
+
+<div
+class="filter-item"
+>
+
+
+<h3>
+카테고리
+</h3>
+
+
+
+<div class="chips wrap">
+
+
+<button
+
+:class="{
+active:filter.categoryId===null
+}"
+
+@click="selectCategory(null)"
+
+>
+전체
+</button>
+
+
+
+<button
+
+v-for="category in categories"
+
+:key="category.categoryId"
+
+:class="{
+active:filter.categoryId===category.categoryId
+}"
+
+@click="selectCategory(category)"
+
+>
+
+{{category.categoryName}}
+
+</button>
+
+
+</div>
 
 
 </div>
@@ -751,10 +921,17 @@ class="apply"
 position:fixed;
 
 inset:0;
+width:100%;
+max-width:480px;
+left:50%;
+transform:translateX(-50%);
+margin:0 auto;
 
 background:rgba(0,0,0,.35);
 
 display:flex;
+
+justify-content:center;
 
 align-items:flex-end;
 
@@ -768,6 +945,8 @@ z-index:1100;
 
 width:100%;
 
+max-width:480px;
+
 max-height:85vh;
 
 overflow-y:auto;
@@ -777,6 +956,8 @@ background:var(--color-surface);
 border-radius:24px 24px 0 0;
 
 padding:20px;
+
+box-sizing: border-box;
 
 }
 

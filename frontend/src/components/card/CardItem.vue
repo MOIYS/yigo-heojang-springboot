@@ -19,16 +19,33 @@ let touchStartX = 0
 let touchStartY = 0
 let isMoving = false
 
+const cardTranslateX = ref(0)
+const showSwipeEffect = ref(false)
+const isAnimating = ref(false)
+const isLandscapeImage = ref(false)
+
+const handleCardImageLoad = (event) => {
+  const image = event.currentTarget
+  isLandscapeImage.value = image.naturalWidth > image.naturalHeight
+}
+
 const handleTouchStart = (e) => {
+  if (isAnimating.value) return
   touchStartX = e.touches[0].clientX
   touchStartY = e.touches[0].clientY
   isMoving = false
+  cardTranslateX.value = 0
+  showSwipeEffect.value = false
 }
 
 const handleTouchMove = (e) => {
-  const deltaX = touchStartX - e.touches[0].clientX
+  if (isAnimating.value) return
+  const currentX = e.touches[0].clientX
+  const deltaX = touchStartX - currentX
+
   if (Math.abs(deltaX) > 10) {
     isMoving = true
+    cardTranslateX.value = -deltaX * 0.5
   }
 }
 
@@ -41,13 +58,27 @@ const handleTouchEnd = (e) => {
   const deltaX = touchStartX - touchEndX
   const deltaY = Math.abs(touchStartY - touchEndY)
 
-  // 오른쪽에서 왼쪽으로 스와이프 감지 (최소 40px, 수직 이동은 무시)
-  console.log('Swipe detected:', { deltaX, deltaY })
   if (deltaX > 40 && deltaY < 80) {
     console.log('Toggling pin for card:', props.card.id)
+    isAnimating.value = true
+    showSwipeEffect.value = true
     e.stopPropagation()
-    e.preventDefault()
+
     emit('toggle-pin', props.card.id)
+
+    setTimeout(() => {
+      cardTranslateX.value = 0
+      showSwipeEffect.value = false
+      isAnimating.value = false
+    }, 400)
+  } else {
+    isAnimating.value = true
+    cardTranslateX.value = 0
+    showSwipeEffect.value = false
+
+    setTimeout(() => {
+      isAnimating.value = false
+    }, 300)
   }
 }
 
@@ -64,18 +95,22 @@ const maskedCardNumber = computed(() => {
 
 <template>
   <div class="card-item" @click="goDetail" @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd" style="cursor: pointer;">
-    <BaseCard>
-      <div class="card-container">
+    <BaseCard :class="{ 'swipe-effect': showSwipeEffect }">
+      <div class="card-container" :style="{ transform: `translateX(${cardTranslateX}px)` }" :class="{ 'animating': isAnimating }">
       <!-- 카드 이미지 -->
       <template v-if="card.image">
-        <img
-          :src="card.image"
-          :alt="card.name"
-          class="card-image"
-        />
+        <div class="card-image-frame">
+          <img
+            :src="card.image"
+            :alt="card.name"
+            class="card-image"
+            :class="{ landscape: isLandscapeImage }"
+            @load="handleCardImageLoad"
+          />
+        </div>
       </template>
       <template v-else>
-        <div class="card-image image-placeholder">CARD</div>
+        <div class="card-image-frame image-placeholder">CARD</div>
       </template>
 
       <!-- 카드 정보 -->
@@ -113,15 +148,44 @@ const maskedCardNumber = computed(() => {
   gap: var(--space-sm);
   width: 100%;
   align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.card-container.animating {
+  transition: transform 0.3s ease;
+}
+
+:deep(.swipe-effect) {
+  background-color: var(--color-primary) !important;
+  opacity: 0.95;
+  transition: all 0.3s ease;
+}
+
+.card-image-frame {
+  width: 56px;
+  height: 88px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-image {
-  width: 48px;
-  height: 76px;
-  border-radius: var(--radius-md);
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  background: var(--color-bg);
+}
+
+.card-image.landscape {
+  width: 88px;
+  height: 56px;
+  max-width: none;
   flex-shrink: 0;
+  transform: rotate(90deg);
 }
 
 .image-placeholder {

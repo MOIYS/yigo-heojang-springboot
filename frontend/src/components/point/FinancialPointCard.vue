@@ -24,7 +24,7 @@ const selectPoint = (point) => {
       :key="point.id"
       :id="point.id"
       :name="point.name"
-      :point="point.balance"
+      :point="point.point"
       @select-point="selectPoint"
     />
   </BaseCard>

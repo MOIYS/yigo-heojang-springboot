@@ -1,9 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  getNotifications,
+  markNotificationAsRead,
+  deleteNotification as deleteNotificationApi,
+} from '@/api/notificationApi';
 
+import PageHeader from '@/components/common/PageHeader.vue';
 import NotificationModal from '@/components/notification/NotificationModal.vue';
 
 // 뒤로가기용
@@ -13,104 +19,109 @@ const router = useRouter();
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 
-// 알림 데이터
-// TODO: GET /notifications API 연결 예정
-// 비로그인 상태일 때는 빈 배열로 처리
-const notificationsData = [
-
-  {
-    id: 1,
-
-    title: '카드 사용 한도 초과',
-
-    // 목록에서 보여줄 짧은 내용
-    preview:
-      '이번 달 카드 사용 금액이 한도를 초과했습니다.',
-
-    // 상세 모달 내용
-    detail: {
-      cardName: '신한 Mr.Life',
-      usedAmount: 520000,
-      limitAmount: 500000,
-      message:
-        '설정한 카드 한도를 초과했습니다. 소비 내역을 확인하고 관리해보세요.',
-    },
-
-    createdAt: '10분 전',
-
-    isRead: false,
-
-  },
-
-
-  {
-    id: 2,
-
-    title: 'AI 소비 분석 완료',
-
-    preview:
-      '이번 달 소비 패턴 분석 결과가 생성되었습니다.',
-
-    detail: {
-      summary:
-        '이번 달 구독 서비스 이용 비중이 높아요.',
-      recommendation:
-        '사용하지 않는 구독 서비스를 확인해보세요.',
-    },
-
-    createdAt: '어제',
-
-    isRead: true,
-
-  },
-
-
-  {
-    id: 3,
-
-    title: '결제 취소 완료',
-
-    preview:
-      '결제 취소 처리가 완료되었습니다.',
-
-    detail: {
-      storeName: '올리브영',
-      amount: 32000,
-      message:
-        '취소 금액이 카드 승인 취소 처리되었습니다.',
-    },
-
-    createdAt: '7월 29일',
-
-    isRead: false,
-
-  },
-
-];
-
-const notifications = ref(notificationsData);
+// 서버에서 받아온 알림 목록. GET /api/notifications
+const notifications = ref([]);
 const selectedNotification = ref(null);
+
+// 서버는 한 번에 최대 10건까지만 준다. 이 화면에는 "더보기" 버튼이 없어서,
+// hasNext가 있으면 몇 페이지까지는 이어서 받아 한 목록으로 보여준다.
+// 무한정 받지 않도록 상한을 둔다 — 알림함은 최신 몇십 건이면 충분하고,
+// 그보다 오래된 알림까지 끌어오면 첫 진입이 느려진다.
+const PAGE_SIZE = 10;
+const MAX_PAGES = 5;
+
+// 서버는 생성 시각을 ISO 문자열로 준다. 화면은 '10분 전' 같은 상대 표기를 쓰므로
+// 여기서 변환한다(표시 형식을 바꾸는 게 아니라 원래 형식에 맞춰 채우는 것).
+const formatRelativeTime = (isoString) => {
+  if (!isoString) return '';
+
+  const created = new Date(isoString);
+  if (Number.isNaN(created.getTime())) return '';
+
+  const absoluteDate = `${created.getMonth() + 1}월 ${created.getDate()}일`;
+
+  const diffMs = Date.now() - created.getTime();
+
+  // 예약 발송이나 시연용 시드는 생성 시각이 미래일 수 있다. 그대로 두면 음수 차이가
+  // '방금 전'으로 접혀 모든 알림이 같은 시각처럼 보인다. 상대 표기가 성립하지 않으므로
+  // 날짜를 그대로 쓴다.
+  if (diffMs < 0) return absoluteDate;
+
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) return '방금 전';
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return '어제';
+  if (diffDays < 7) return `${diffDays}일 전`;
+
+  return absoluteDate;
+};
+
+// 서버 응답을 이 화면이 쓰는 형태로 옮긴다.
+//
+// detail은 반드시 객체여야 한다 — 상세 모달이 notification.detail.cardName처럼
+// 바로 접근해서, undefined면 렌더링 중 에러가 난다.
+// 서버는 title/content 두 개만 주므로 본문을 message에 담아 모달의 기본 문구 자리에 채운다.
+const toViewModel = (item) => ({
+  id: item.notificationId,
+  title: item.title,
+  message: item.content,
+  createdAt: formatRelativeTime(item.createdAt),
+  isRead: Boolean(item.read),
+  detail: {
+    message: item.content,
+  },
+});
+
+const loadNotifications = async () => {
+  // 비로그인 상태에서는 호출하지 않는다. 어차피 401이고, 화면은 빈 목록을 보여준다.
+  if (!user.value) {
+    notifications.value = [];
+    return;
+  }
+
+  try {
+    const collected = [];
+
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const response = await getNotifications({ page, size: PAGE_SIZE });
+
+      collected.push(...(response?.notifications || []).map(toViewModel));
+
+      if (!response?.hasNext) {
+        break;
+      }
+    }
+
+    notifications.value = collected;
+  } catch (error) {
+    console.error('알림 목록 조회 실패:', error);
+    notifications.value = [];
+  }
+};
+
+onMounted(loadNotifications);
 
 // 비로그인 상태에서는 알림 없음 처리
 const displayNotifications = computed(() => {
   return user.value ? notifications.value : [];
 });
 
+// 여는 순간 읽음으로 넘긴다.
+//
+// 확인 버튼에만 걸어두면 ×로 닫은 알림이 안 읽음으로 남아, 분명히 열어본 알림이
+// 목록에서 계속 진하게 보인다. readNotification은 이미 읽은 건을 그냥 흘려보내므로
+// 확인 버튼과 겹쳐 호출돼도 요청이 두 번 나가지 않는다.
 const openNotification = (item) => {
   selectedNotification.value = item;
+
+  readNotification(item.id);
 };
-
-
-
-
-// 읽지 않은 알림 개수
-const unreadCount = computed(() => {
-
-  return displayNotifications.value.filter(
-    item => !item.isRead
-  ).length;
-
-});
 
 
 
@@ -123,18 +134,36 @@ const goBack = () => {
 
 
 
-// 알림 클릭
-// 읽음 처리
-const readNotification = (id) => {
+// 알림 읽음 처리 — PATCH /api/notifications/{id}/read
+//
+// 화면을 먼저 바꾸고 서버에 보낸다. 응답을 기다렸다가 바꾸면 모달을 닫는 순간
+// 목록이 잠깐 안 읽음으로 남아 깜빡인다. 실패하면 원래 상태로 되돌린다.
+const readNotification = async (id) => {
 
   const target = notifications.value.find(
     item => item.id === id
   );
 
 
-  if(target){
+  if (!target || target.isRead) {
 
-    target.isRead = true;
+    return;
+
+  }
+
+
+  target.isRead = true;
+
+
+  try {
+
+    await markNotificationAsRead(id);
+
+  } catch (error) {
+
+    console.error('알림 읽음 처리 실패:', error);
+
+    target.isRead = false;
 
   }
 
@@ -142,11 +171,40 @@ const readNotification = (id) => {
 
 
 // 모두 읽음
-const readAll = () => {
+// 한 번에 처리하는 API가 없어 안 읽은 것만 골라 각각 호출한다.
+// 화면에 최대 50건이라 요청 수가 통제된다.
+const readAll = async () => {
 
-  notifications.value.forEach(item => {
+  const unread = notifications.value.filter(item => !item.isRead);
 
+
+  if (!unread.length) {
+
+    return;
+
+  }
+
+
+  unread.forEach(item => {
     item.isRead = true;
+  });
+
+
+  const results = await Promise.allSettled(
+    unread.map(item => markNotificationAsRead(item.id)),
+  );
+
+
+  // 실패한 건만 원래대로 되돌린다. 성공한 건까지 되돌리면 서버와 화면이 어긋난다.
+  results.forEach((result, index) => {
+
+    if (result.status === 'rejected') {
+
+      console.error('알림 읽음 처리 실패:', result.reason);
+
+      unread[index].isRead = false;
+
+    }
 
   });
 
@@ -154,22 +212,37 @@ const readAll = () => {
 
 
 
-// 전체 삭제
-const deleteAll = () => {
+// 개별 삭제 — DELETE /api/notifications/{id}
+//
+// 삭제는 되돌리기 어려운 동작이라 서버가 성공을 확인한 뒤에 목록에서 뺀다.
+// 먼저 지웠다가 실패하면 사라진 알림이 다시 나타나 더 혼란스럽다.
+const deleteNotification = async (id) => {
 
-  notifications.value = [];
+  try {
 
-};
+    await deleteNotificationApi(id);
 
+  } catch (error) {
 
+    console.error('알림 삭제 실패:', error);
 
-// 개별 삭제
-const deleteNotification = (id) => {
+    return;
+
+  }
+
 
   notifications.value =
     notifications.value.filter(
       item => item.id !== id
     );
+
+
+  // 지운 알림을 상세로 열어둔 상태였다면 같이 닫는다.
+  if (selectedNotification.value?.id === id) {
+
+    selectedNotification.value = null;
+
+  }
 
 };
 
@@ -183,30 +256,11 @@ const deleteNotification = (id) => {
 
 
   <!-- 헤더 -->
-  <header class="notification-header">
-
-    <button
-      type="button"
-      class="back-button"
-      @click="goBack"
-    >
-      ‹
+  <PageHeader title="알림" @back="goBack">
+    <button @click="readAll" style="background: var(--color-primary); color: var(--color-btn-primary-text); border: none; padding: 12px 20px; border-radius: var(--radius-lg); font-weight: 600; font-size: var(--font-sm); cursor: pointer; height: 40px; display: flex; align-items: center;">
+      모두 읽음
     </button>
-
-
-    <h1>
-      알림
-    </h1>
-
-
-    <span
-      v-if="unreadCount"
-      class="count"
-    >
-      {{ unreadCount }}
-    </span>
-
-  </header>
+  </PageHeader>
 
 
 
@@ -236,6 +290,8 @@ const deleteNotification = (id) => {
     >
 
 
+      <!-- 목록은 제목과 시각만 보여준다. 본문은 눌러서 모달로 본다 —
+           다이제스트 본문이 여러 줄이라 목록에 펼치면 카드가 화면을 다 먹는다. -->
       <div class="notification-content">
 
 
@@ -244,12 +300,7 @@ const deleteNotification = (id) => {
         </h2>
 
 
-        <p>
-          {{ item.message }}
-        </p>
-
-
-        <span>
+        <span class="time">
           {{ item.createdAt }}
         </span>
 
@@ -273,50 +324,17 @@ const deleteNotification = (id) => {
 
   </main>
 
-
-
-
-  <!-- 하단 버튼 -->
-  <footer
-    v-if="notifications.length"
-    class="notification-actions"
-  >
-
-    <button
-      type="button"
-      @click="readAll"
-    >
-      모두 읽음
-    </button>
-
-
-    <button
-      type="button"
-      @click="deleteAll"
-    >
-      전체 삭제
-    </button>
-
-
-  </footer>
-
   <NotificationModal
-  v-if="selectedNotification"
-  :notification="selectedNotification"
-  @close="selectedNotification=null"
-/>
 
-<NotificationModal
+    v-if="selectedNotification"
 
-  v-if="selectedNotification"
+    :notification="selectedNotification"
 
-  :notification="selectedNotification"
+    @close="selectedNotification = null"
 
-  @close="selectedNotification = null"
+    @read="readNotification"
 
-  @read="readNotification"
-
-/>
+  />
 
 
 
@@ -342,67 +360,6 @@ const deleteNotification = (id) => {
 
 
 
-.notification-header {
-
-  display:flex;
-
-  align-items:center;
-
-  gap: var(--space-sm);
-
-  margin-bottom: var(--space-xl);
-
-}
-
-
-
-.notification-header h1 {
-
-  font-size: var(--font-title);
-
-  font-weight: var(--font-bold);
-
-}
-
-
-
-.back-button {
-
-  border:none;
-
-  background:none;
-
-  font-size: var(--font-2xl);
-
-  cursor:pointer;
-
-  color: var(--color-text-primary);
-
-}
-
-
-
-.count {
-
-  display:flex;
-
-  align-items:center;
-
-  justify-content:center;
-
-  width:24px;
-
-  height:24px;
-
-  border-radius: var(--radius-full);
-
-  background: var(--color-coral);
-
-  color: var(--color-btn-primary-text);
-
-  font-size: var(--font-xs);
-
-}
 
 
 
@@ -422,9 +379,9 @@ const deleteNotification = (id) => {
 
   display:flex;
 
-  justify-content:space-between;
-
   align-items:flex-start;
+
+  gap: var(--space-sm);
 
   padding: var(--space-md);
 
@@ -432,9 +389,13 @@ const deleteNotification = (id) => {
 
   border-radius: var(--radius-md);
 
-  color: var(--color-text-secondary);
+  /* 읽은 알림의 기본 상태 — 연한 회색(#83868B). 안 읽은 것만 아래에서 진하게 덮는다.
+     기본을 "읽음"으로 두면 읽음 처리에서 클래스가 빠지는 것만으로 색이 내려간다. */
+  color: var(--color-text-tertiary);
 
-  transition: var(--transition-normal);
+  transition: color var(--transition-normal);
+
+  cursor: pointer;
 
 }
 
@@ -444,39 +405,76 @@ const deleteNotification = (id) => {
 
   color: var(--color-text-primary);
 
-  font-weight: var(--font-semibold);
+}
+
+
+
+/* min-width:0 이 없으면 flex 자식이 내용 너비만큼 버텨서 제목이 안 접히고
+   삭제 버튼을 밀어낸다. */
+.notification-content {
+
+  flex: 1;
+
+  min-width: 0;
 
 }
 
 
 
+/* 제목 길이가 제각각이라 그대로 두면 카드 높이가 들쭉날쭉하다.
+   두 줄에서 자르면 줄이 맞고, 잘린 전문은 눌러서 모달에서 본다.
+   한국어는 어절 단위로 끊어야 읽히므로 keep-all 을 쓰고,
+   LIFESTYLE_SHOPPING_5000 같이 안 끊기는 토큰만 break-word 로 흘린다. */
 .notification-content h2 {
 
-  margin: 0 0 var(--space-xs);
+  margin: 0;
 
   font-size: var(--font-md);
 
+  /* 굵기도 색과 같이 내린다. 색만 바꾸면 제목이 계속 굵어서 읽은 티가 잘 안 난다.
+     여기에 semibold 를 박아두면 부모의 .unread 규칙이 h2 를 못 이긴다 —
+     그래서 기본을 regular 로 두고 .unread 쪽에서 올린다. */
+  font-weight: var(--font-regular);
+
+  color: inherit;
+
+  transition: color var(--transition-normal);
+
+  line-height: 1.45;
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+
+  -webkit-box-orient: vertical;
+
+  overflow: hidden;
+
+  word-break: keep-all;
+
+  overflow-wrap: break-word;
+
+}
+
+
+
+.notification-item.unread .notification-content h2 {
+
   font-weight: var(--font-semibold);
 
 }
 
 
 
-.notification-content p {
+.notification-content .time {
 
-  margin: 0 0 var(--space-xs);
+  display: block;
 
-  font-size: var(--font-sm);
-
-  font-weight: var(--font-regular);
-
-}
-
-
-
-.notification-content span {
+  margin-top: var(--space-xs);
 
   font-size: var(--font-xs);
+
+  font-weight: var(--font-regular);
 
   color: var(--color-text-tertiary);
 
@@ -484,7 +482,23 @@ const deleteNotification = (id) => {
 
 
 
+/* flex:none 과 고정 크기를 주지 않으면 제목 길이에 따라 버튼이 밀려
+   행마다 × 위치가 어긋난다. */
 .delete-button {
+
+  flex: none;
+
+  width: 28px;
+
+  height: 28px;
+
+  margin: -4px -4px 0 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
 
   border:none;
 
@@ -492,6 +506,8 @@ const deleteNotification = (id) => {
 
   font-size: var(--font-lg);
 
+  line-height: 1;
+
   color: var(--color-text-tertiary);
 
   cursor:pointer;
@@ -500,39 +516,6 @@ const deleteNotification = (id) => {
 
 
 
-.notification-actions {
-
-  position:fixed;
-
-  right: var(--space-md);
-
-  bottom: var(--space-lg);
-
-  display:flex;
-
-  flex-direction:column;
-
-  gap: var(--space-xs);
-
-}
-
-
-
-.notification-actions button {
-
-  padding: var(--space-sm) var(--space-md);
-
-  border:none;
-
-  border-radius: var(--radius-lg);
-
-  background: var(--color-primary);
-
-  color: var(--color-btn-primary-text);
-
-  cursor:pointer;
-
-}
 
 
 

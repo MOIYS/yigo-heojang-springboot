@@ -1,14 +1,22 @@
 <script setup>
 import { ref, watch } from 'vue';
 
+import { readImageAsResizedDataUrl } from '@/utils/image';
 import AppButton from '@/components/common/AppButton.vue';
 import AppInput from '@/components/common/AppInput.vue';
+import Icon from '@/components/common/Icon.vue';
 
 
 const props = defineProps({
   user: {
     type: Object,
     required: true,
+  },
+
+  // 저장 요청이 끝날 때까지 부모가 켜둔다 — 같은 요청이 두 번 나가지 않게 한다.
+  saving: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -32,7 +40,7 @@ watch(
   (newUser) => {
     if (newUser) {
       form.value = {
-        nickname: newUser.nickname ?? '',
+        nickname: newUser.nickname ?? newUser.name ?? '',
         profileImageUrl: newUser.profileImageUrl ?? '',
       };
     }
@@ -45,6 +53,10 @@ watch(
 
 
 const saveProfile = () => {
+  if (props.saving) {
+    return;
+  }
+
   emit('save', {
     nickname: form.value.nickname,
     profileImageUrl: form.value.profileImageUrl,
@@ -69,20 +81,22 @@ const openFilePicker = () => {
 
 
 // 선택한 이미지를 미리보기로 반영
-const changeProfileImage = (event) => {
+// 원본 그대로 담으면 localStorage 한도에 걸려 저장이 실패하므로 줄여서 들고 있는다.
+const changeProfileImage = async (event) => {
   const file = event.target.files?.[0];
 
   if (!file) {
     return;
   }
 
-  const reader = new FileReader();
-
-  reader.onload = () => {
-    form.value.profileImageUrl = reader.result;
-  };
-
-  reader.readAsDataURL(file);
+  try {
+    form.value.profileImageUrl = await readImageAsResizedDataUrl(file);
+  } catch (error) {
+    console.error('프로필 이미지 처리 실패:', error);
+  } finally {
+    // 같은 파일을 다시 골라도 change가 뜨도록 값을 비운다.
+    event.target.value = '';
+  }
 };
 </script>
 
@@ -105,7 +119,7 @@ const changeProfileImage = (event) => {
           <div v-else class="profile-image default-image"></div>
 
           <button class="camera-button" type="button" @click="openFilePicker">
-            <span class="material-icons"> photo_camera </span>
+            <Icon name="camera" size="sm" />
           </button>
         </div>
       </div>
@@ -124,7 +138,12 @@ const changeProfileImage = (event) => {
       <div class="button-area">
         <AppButton text="취소" type="secondary" @click="closeSheet" />
 
-        <AppButton text="저장" type="primary" @click="saveProfile" />
+        <AppButton
+          :text="saving ? '저장 중…' : '저장'"
+          type="primary"
+          :disabled="saving"
+          @click="saveProfile"
+        />
       </div>
     </section>
   </div>
@@ -135,10 +154,17 @@ const changeProfileImage = (event) => {
   position: fixed;
 
   inset: 0;
+  width: 100%;
+  max-width: 480px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0 auto;
 
   background: rgba(0, 0, 0, 0.45);
 
   display: flex;
+
+  justify-content: center;
 
   align-items: flex-end;
 
@@ -148,19 +174,23 @@ const changeProfileImage = (event) => {
 .bottom-sheet {
   width: 100%;
 
+  max-width: 480px;
+
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 
   padding: var(--space-xl);
 
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, var(--color-surface) 30%);
+  background: var(--color-surface);
   border-top: 1px solid rgba(255, 255, 255, 0.35);
   box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.12);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+
+  box-sizing: border-box;
 }
 
 [data-theme="dark"] .bottom-sheet {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, var(--color-surface) 30%);
+  background: var(--color-surface);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.35);
 }
@@ -229,9 +259,9 @@ h2 {
 
   bottom: -5px;
 
-  width: 34px;
+  width: 36px;
 
-  height: 34px;
+  height: 36px;
 
   border-radius: 50%;
 
@@ -239,17 +269,24 @@ h2 {
   align-items: center;
   justify-content: center;
 
-  background: linear-gradient(135deg, var(--color-btn-primary-start), var(--color-btn-primary-end));
+  background: var(--color-primary);
 
-  border: 2px solid var(--color-surface);
+  border: none;
 
-  color: var(--color-btn-primary-text);
+  color: white;
 
   cursor: pointer;
+  transition: var(--transition-fast);
+  padding: 0;
 }
 
-.camera-button .material-icons {
-  font-size: 16px;
+.camera-button:hover {
+  opacity: 0.8;
+}
+
+[data-theme="dark"] .camera-button {
+  background: white;
+  color: #333;
 }
 
 .button-area {

@@ -5,8 +5,11 @@ import { storeToRefs } from 'pinia';
 
 import { useAuthStore } from '@/stores/authStore';
 import { useCardStore } from '@/stores/cardStore';
+import { getTransactionsSummary } from '@/api/walletApi';
+import { getBenefitReport } from '@/api/benefitApi';
 
 import HomeHeader from '@/components/home/HomeHeader.vue';
+import Icon from '@/components/common/Icon.vue';
 import AIBriefingCard from '@/components/common/AIBriefingCard.vue';
 import MyCardSummaryCard from '@/components/home/MyCardSummaryCard.vue';
 import PointSummaryCard from '@/components/home/PointSummaryCard.vue';
@@ -28,7 +31,8 @@ const { user } = storeToRefs(authStore);
 // 카드 store 연결
 const cardStore = useCardStore();
 
-const { cards, points } = storeToRefs(cardStore);
+// briefing 은 GET /api/cards/monthly-status 응답에 함께 오고 cardStore 가 채운다.
+const { cards, points, memberships, briefing } = storeToRefs(cardStore);
 
 // 금융 포인트 - 제일 많은 순서로 3개까지
 const topPoints = computed(() =>
@@ -49,7 +53,7 @@ const showNotification = (type, message) => {
 };
 
 const hasMembership = computed(
-  () => (homeData.value.memberships?.length ?? 0) > 0,
+  () => (memberships.value?.length ?? 0) > 0,
 );
 
 const hasCard = computed(() => cards.value.length > 0);
@@ -63,15 +67,51 @@ const hasUnreadNotification = computed(() => {
 const pinnedCards = computed(() => cards.value.filter((card) => card.pinned));
 const hasPinnedCard = computed(() => pinnedCards.value.length > 0);
 
-// 두리 브리핑 메시지 - 동적 생성
+// 시간대별 인삿말
+const timeGreeting = computed(() => {
+  const hour = new Date().getHours();
+  const nickname = user.value?.nickname || user.value?.name || '사용자';
+
+  if (hour >= 6 && hour < 12) {
+    return { message: `좋은 아침이에요, ${nickname}님!`, emoji: '☀️' };
+  } else if (hour >= 12 && hour < 18) {
+    return { message: `좋은 오후예요, ${nickname}님!`, emoji: '🌤️' };
+  } else if (hour >= 18 && hour < 22) {
+    return { message: `좋은 저녁이에요, ${nickname}님!`, emoji: '🌙' };
+  } else {
+    return { message: `늦은 시간이네요, 푹 쉬세요!`, emoji: '😴' };
+  }
+});
+
+// 현재 날짜 포맷
+const currentDate = computed(() => {
+  const today = new Date();
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return today.toLocaleDateString('ko-KR', options);
+});
+
+// 두리 브리핑
+// 문장은 서버가 숫자까지 끼워 완성해 내려준다. 화면에서 다시 조립하지 않는다 —
+// 조립을 양쪽에서 하면 서버가 판단한 상황과 화면에 뜬 문장이 갈린다.
+// 보유 카드가 0장이어도 카드 등록을 안내하는 브리핑이 내려오므로 여기서 따로 만들 것이 없다.
+//
+// 아래 고정 문구는 조회 자체가 실패했을 때만 쓰는 폴백이다.
 const briefingMessage = computed(() => {
   if (!user.value) {
     return '로그인 후 나의 카드 혜택과 포인트 분석을 기반으로 맞춤형 추천을 받을 수 있어요.';
   }
 
+  if (briefing.value?.message) {
+    return briefing.value.message;
+  }
+
   const nickname = user.value.nickname || user.value.name || '사용자';
-  return `${nickname}님, 카드를 등록하면 맞춤 혜택 분석을 받을 수 있어요.`;
+  return `${nickname}님, 이번 달 카드 실적을 확인해보세요.`;
 });
+
+// 상황 구분값(NO_CARD·UNUSED_BENEFIT·PERFORMANCE_NEAR·ALL_ACHIEVED·SPENDING_INSIGHT·GETTING_STARTED).
+// 화면 분기는 이 값으로 한다. 문장을 뜯어 분기하면 문구가 바뀔 때마다 깨진다.
+const briefingType = computed(() => briefing.value?.type ?? null);
 
 // 홈 데이터
 const homeData = ref({
@@ -80,33 +120,30 @@ const homeData = ref({
   briefing: {
     content: '',
   },
-
-  myCard: {
-    image: '',
-
-    cardName: '신한 Mr.Life',
-
-    currentAmount: 300000,
-
-    targetAmount: 500000,
-
-    remainAmount: 200000,
-
-    remainBenefit: 13500,
-
-    achievementRate: 60,
-  },
-
-  memberships: [],
 });
 
 // 혜택 리포트
-// TODO: GET /benefits/report 연결
+// GET /api/benefits/report — 이번 달
+//
+// 홈 카드는 총액과 최대 부문만 쓴다. 부문별 목록·거래 상세는 같은 응답의
+// categories[]에 들어 있고 혜택 화면(PointListView)의 바텀시트가 쓴다.
+const benefitReportData = ref(null);
 
-const benefitReport = {
-  totalBenefit: 12500,
+// 조회 전과 조회 실패에도 null을 내지 않는다. 카드가 report를 필수로 받는 데다,
+// 여기서 null을 내면 아래 v-if 사슬이 로그인 안내 문구로 떨어져 로그인한 사용자에게
+// 엉뚱한 안내가 나간다. 값이 없을 때는 0원으로 그린다.
+const benefitReport = computed(() => ({
+  totalBenefit: benefitReportData.value?.totalBenefitAmount ?? 0,
+  // 받은 혜택이 없는 달이면 topCategoryName이 null로 온다 (에러가 아니다).
+  maxCategory: benefitReportData.value?.topCategoryName ?? '아직 없어요',
+}));
 
-  maxCategory: '구독/콘텐츠',
+const loadBenefitReport = async () => {
+  try {
+    benefitReportData.value = await getBenefitReport();
+  } catch (error) {
+    console.error('혜택 리포트 조회 실패:', error);
+  }
 };
 
 // 이번 달 소비내역 요약 (홈 화면 소비내역 카드용 데이터)
@@ -119,10 +156,23 @@ const benefitReport = {
 //   - 응답 형식: { success: true, code: "SUCCESS", data: { count, totalAmount }, message: null }
 //   - 쿼리 파라미터 처리: cardId가 없으면 전체, 있으면 해당 카드만 반환
 //     (예: /transactions/summary?cardId=1 → cardId가 1인 카드의 이번 달 요약)
-const spendingSummary = {
-  count: 8,
+const spendingSummary = ref({
+  count: 0,
+  totalAmount: 0,
+});
 
-  totalAmount: 342000,
+const loadSpendingSummary = async () => {
+  try {
+    // 현재 월을 "2026-08" 형식으로 계산
+    const today = new Date();
+    const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const yearMonth = `${today.getFullYear()}-${currentMonth}`;
+
+    const summary = await getTransactionsSummary({ yearMonth });
+    spendingSummary.value = summary;
+  } catch (error) {
+    console.error('거래 요약 조회 실패:', error);
+  }
 };
 
 // 헤더
@@ -155,7 +205,7 @@ const goCardList = () => {
 // 혜택 이동
 
 const goBenefit = () => {
-  router.push('/benefits');
+  router.push('/points');
 };
 
 // 소비내역 이동 (홈에서는 전체 카드 소비내역)
@@ -175,8 +225,8 @@ const goPointDetail = (item) => {
 
 // 멤버십
 
-const goMembershipDetail = (item) => {
-  console.log(item);
+const goMembershipDetail = (membership) => {
+  router.push(`/memberships/${membership.membershipRegisterId}`);
 };
 
 const goMembershipRegister = () => {
@@ -212,39 +262,14 @@ const loadHome = async () => {
   */
 };
 
-const addMockData = () => {
-  if (!user.value) {
-    authStore.setLogin('dummy-token', {
-      id: 1,
-      email: 'test@example.com',
-      name: '테스트',
-      nickname: '테스트유저'
-    });
-  }
-  if (cards.value.length === 0) {
-    cardStore.addCard({
-      id: 1,
-      name: '신한 Mr.Life',
-      cardNumber: '4111111111111111',
-      company: '신한카드',
-      image: '',
-      pinned: false,
-      achievementRate: 68,
-      benefits: ['카페 10% 할인', '식당 5% 캐시백', '교통비 2배 적립']
-    });
-  } else {
-    // 이미 있는 카드에 benefits 추가
-    cards.value.forEach(card => {
-      if (!card.benefits) {
-        card.benefits = ['카페 10% 할인', '식당 5% 캐시백', '교통비 2배 적립'];
-      }
-    });
-  }
-};
-
 onMounted(async () => {
+  await cardStore.loadCards();
+  await cardStore.loadPoints();
+  await cardStore.loadMemberships();
   await loadHome();
-  addMockData();
+  await loadSpendingSummary();
+  await loadBenefitReport();
+
 });
 </script>
 
@@ -260,81 +285,42 @@ onMounted(async () => {
     />
 
     <main class="home-content">
-      <!-- Phase 3 테스트 버튼 -->
-      <div
-        style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap"
-      >
-        <button
-          @click="showNotification('success', '인증이 완료되었습니다')"
-          style="
-            padding: 8px 12px;
-            background: var(--color-accent-green);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-          "
-        >
-          Success
-        </button>
-        <button
-          @click="showNotification('error', '작업을 완료할 수 없습니다')"
-          style="
-            padding: 8px 12px;
-            background: var(--color-accent-coral);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-          "
-        >
-          Error
-        </button>
-        <button
-          @click="showNotification('info', '새로운 알림 1개가 있습니다')"
-          style="
-            padding: 8px 12px;
-            background: var(--color-accent-green);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-          "
-        >
-          Info
-        </button>
-        <button
-          @click="showNotification('warning', '이 작업은 되돌릴 수 없습니다')"
-          style="
-            padding: 8px 12px;
-            background: var(--color-primary);
-            color: var(--color-text-primary);
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-          "
-        >
-          Warning
-        </button>
+      <!-- 프로필 섹션 -->
+      <div class="profile-briefing-section">
+        <!-- 프로필 헤더 섹션 -->
+        <section v-if="user" class="profile-header-section">
+          <div class="profile-avatar-large" @click="goProfile">
+            <img v-if="user.profileImageUrl" :src="user.profileImageUrl" alt="프로필" class="profile-image" />
+            <span v-else>{{ user.nickname?.charAt(0) || user.name?.charAt(0) || '👤' }}</span>
+          </div>
+          <p class="profile-date-text">{{ currentDate }}</p>
+          <p class="greeting-text">{{ timeGreeting.message }}</p>
+        </section>
+
+        <!-- 우측 상단 버튼들 -->
+        <div class="profile-header-buttons">
+          <button @click="goChatBot" class="header-btn" title="AI 챗봇" data-tour="chat-button">
+            <Icon name="aibot" size="md" />
+          </button>
+          <button @click="goNotification" class="header-btn notification-btn" :class="{ 'has-notification': hasUnreadNotification }" title="알림" data-tour="notification-button">
+            <Icon name="bell" size="md" />
+            <span v-if="hasUnreadNotification" class="notification-dot" />
+          </button>
+        </div>
       </div>
 
-      <HomeHeader
-        :has-unread-notification="hasUnreadNotification"
-        :user="user"
-        @chat="goChatBot"
-        @click-notification="goNotification"
-        @profile="goProfile"
-      />
-
       <!-- AI 브리핑 -->
+      <section class="home-section">
+        <AIBriefingCard
+          v-if="user"
+          :is-login="true"
+          :message="briefingMessage"
+          :briefing-type="briefingType"
+          @register-card="goCardList"
+        />
 
-      <AIBriefingCard v-if="user" :is-login="true" :message="briefingMessage" />
-
-      <AIBriefingCard v-else :is-login="false" :message="briefingMessage" />
+        <AIBriefingCard v-else :is-login="false" :message="briefingMessage" />
+      </section>
 
       <!-- 혜택 리포트 -->
 
@@ -482,7 +468,7 @@ onMounted(async () => {
 
           <MembershipSummaryCard
             v-if="user && hasMembership"
-            :memberships="homeData.memberships"
+            :memberships="memberships"
             @click-item="goMembershipDetail"
             @click-more="goMembershipRegister"
           />
@@ -598,6 +584,129 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   margin-top: calc(var(--font-lg) * -0.3);
+}
+
+/* 프로필 섹션 */
+.profile-briefing-section {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: var(--space-lg) var(--space-md) var(--space-md) 0;
+  background: transparent;
+}
+
+
+/* 프로필 헤더 섹션 */
+.profile-header-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* 프로필 사진 */
+.profile-avatar-large {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: var(--font-bold);
+  color: white;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  overflow: hidden;
+}
+
+.profile-avatar-large:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.profile-avatar-large .profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-avatar-large span {
+  color: white;
+}
+
+[data-theme="dark"] .profile-avatar-large span {
+  color: black;
+}
+
+/* 프로필 헤더 우측 버튼들 */
+.profile-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+  margin-right: -20px;
+}
+
+.header-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+  color: var(--color-text-primary);
+  padding: 0;
+}
+
+.header-btn:hover {
+  opacity: 0.7;
+}
+
+.header-btn.notification-btn {
+  position: relative;
+}
+
+.notification-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-danger);
+}
+
+/* 날짜 */
+.profile-date-text {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+}
+
+/* 인사말 */
+.greeting-text {
+  margin: 0;
+  font-size: var(--font-lg);
+  font-weight: var(--font-bold);
+  color: var(--color-text-primary);
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 /* Empty 버튼 영역 */
