@@ -1,6 +1,8 @@
 ﻿<script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { getCardRecommendations } from '@/api/walletApi';
+import { createPaymentQr, payWithQr } from '@/api/paymentQrApi';
 
 import { usePaymentStore } from '@/stores/payment';
 import { useAuthStore } from '@/stores/authStore';
@@ -36,6 +38,29 @@ const router = useRouter();
 const cardStore = useCardStore();
 
 const { cards } = storeToRefs(cardStore);
+
+// 업종 라벨 → 업종 ID.
+//
+// 표를 이 파일에 두지 않고 personalization 스토어의 목록에서 찾는다.
+// 여기에 표를 따로 두면 스토어와 두 벌이 되는데, 실제로 그렇게 어긋나 있었다 —
+// 편의점을 고르면 '배달앱'(103), 마트는 '패스트푸드'(104), 뷰티는 '제과아이스크림'(105)로
+// 나갔고, 의료(106)는 아예 없는 업종이라 결제가 404로 죽었다.
+// 값이 틀려도 화면은 멀쩡해서 눈에 띄지 않는다.
+const resolveCategoryId = () => {
+  if (!selectedCategory.value) return null;
+  return personalizationStore.categories
+      .find(cat => cat.label === selectedCategory.value)?.id ?? null;
+};
+
+// 혜택 종류 매핑
+const benefitKindMap = {
+  'DISCOUNT': '할인',
+  'POINT': '적립',
+  'CASHBACK': '캐시백',
+  'SPECIAL_PRICE': '특가',
+  'GIFT': '선물',
+  'RETROACTIVE': '후적립'
+};
 
 
 // Store
@@ -84,6 +109,9 @@ const isPasswordModalAnimating = ref(false);
 
 // QR 모달
 const showQRModal = ref(false);
+
+// 서버가 발급한 QR 토큰. 결제 실행에 그대로 실어 보낸다.
+const qrToken = ref(null);
 const isQRModalAnimating = ref(false);
 const qrSeconds = ref(60);
 let qrTimer = null;
@@ -169,70 +197,7 @@ const membershipBenefit = computed(() => {
 
 
 // 추천 카드 데이터
-// TODO : POST /api/payment/recommend 연결 후 교체
-const recommendedCards = ref([
-
-  {
-    id: 1,
-
-    name: 'KB My WE:SH 카드',
-
-    image: '/images/cards/kb-wesh.png',
-
-    benefit: 7000,
-
-
-    reasons: [
-      '카페 할인 혜택 적용',
-      '올리브영 결제 혜택',
-      '생활 영역 할인 가능',
-    ],
-
-  },
-
-
-  {
-    id: 2,
-
-    name: '신한 SOL Pay 카드',
-
-    image: '/images/cards/shinhan.png',
-
-    benefit: 5000,
-
-
-    reasons: [
-
-      '온라인 결제 할인',
-
-      '편의점 할인',
-
-    ],
-
-  },
-
-
-  {
-    id: 3,
-
-    name: '삼성 iD 카드',
-
-    image: '/images/cards/samsung.png',
-
-    benefit: 3000,
-
-
-    reasons: [
-
-      '간편결제 할인',
-
-      '커피 할인',
-
-    ],
-
-  },
-
-]);
+const recommendedCards = ref([]);
 
 
 
@@ -274,54 +239,49 @@ const goHome = () => {
 
 
 // 추천 실행
-const recommendCard = () => {
-
-
+const recommendCard = async () => {
   // 비로그인
   if (!isLogin.value) {
-
     showLoginModal.value = true;
-
     return;
-
   }
-
-
 
   // 카드 없음
   if (cards.value.length === 0) {
-
-  showCardRegisterModal.value = true;
-
-  return;
-
-}
-
-
+    showCardRegisterModal.value = true;
+    return;
+  }
 
   selectedCard.value = null;
-
-
   isLoading.value = true;
 
+  try {
+    const payload = {
+      expectedAmount: Number(paymentAmount.value),
+      categoryId: resolveCategoryId() ?? undefined,
+      paymentType: 'CARD',
+    };
+    console.log('카드 추천 payload:', payload);
+    const response = await getCardRecommendations(payload);
+    console.log('API 응답:', response);
 
-
-  // TODO
-  // POST /api/payment/recommend
-
-
-  setTimeout(() => {
-
-
-    isLoading.value = false;
-
-
+    // API 응답 필드 매핑
+    recommendedCards.value = (response.recommendations || []).map((card) => ({
+      id: Number(card.userCardId),
+      name: card.cardName,
+      image: '',
+      benefit: Number(card.expectedBenefit || 0),
+      benefitKind: benefitKindMap[card.benefitKind] || card.benefitKind,
+      reasons: card.reason ? [card.reason] : [],
+    }));
+    console.log('매핑된 카드:', recommendedCards.value);
     isRecommended.value = true;
-
-
-  }, 500);
-
-
+  } catch (error) {
+    console.error('카드 추천 실패:', error);
+    alert(error.response?.data?.message || error.message || '카드 추천에 실패했습니다.');
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 
@@ -427,29 +387,64 @@ const clickPayment = () => {
 
 
 
-// 비밀번호 인증 성공
-const onPasswordSuccess = () => {
-
-
+// 비밀번호 인증 성공 → QR 발급
+//
+// 여기서 서버에 QR을 발급받아 실제 토큰을 화면에 띄운다. 예전에는 모달만 열고
+// 서버를 부르지 않아, 화면에는 QR이 보이는데 서버에는 아무 기록도 없었다.
+const onPasswordSuccess = async () => {
   showPasswordModal.value = false;
-
   isPasswordModalAnimating.value = false;
 
   paymentStore.setPaymentInfo(
-
     selectedCard.value,
-
     paymentAmount.value,
-
     membershipBenefit.value
-
   );
 
-  showQRModal.value = true;
-  isQRModalAnimating.value = true;
-  startQRTimer();
+  try {
+    const qr = await createPaymentQr(selectedCard.value.id, paymentAmount.value);
+    qrToken.value = qr.qrToken || qr.token;
 
+    showQRModal.value = true;
+    isQRModalAnimating.value = true;
+    startQRTimer();
+  } catch (error) {
+    console.error('QR 발급 실패:', error);
+    alert(error?.message || 'QR 발급에 실패했습니다.');
+  }
+};
 
+// QR이 스캔된 시점에 실제 결제를 실행한다.
+//
+// 이 호출이 빠지면 QR만 발급된 채 끝나 payment_qr이 READY로 남고,
+// 소비내역·결제원장이 만들어지지 않는다. 화면에는 결제가 된 것처럼 보이는데
+// 결제내역에는 아무것도 없는 상태가 된다.
+const onQrSuccess = async () => {
+  const categoryId = resolveCategoryId();
+
+  // 서버가 categoryId와 merchantName을 둘 다 필수로 받는다.
+  if (!qrToken.value || !categoryId) {
+    cancelPayment();
+    alert('업종을 선택해야 결제할 수 있습니다.');
+    return;
+  }
+
+  try {
+    await payWithQr(qrToken.value, {
+      merchantId: null,          // 가맹점 마스터 ID는 화면에서 확정하지 못한다
+      merchantName: selectedMerchant.value || selectedCategory.value,
+      categoryId,
+    });
+
+    router.push('/transactions');   // 방금 만들어진 내역을 바로 확인시킨다
+  } catch (error) {
+    // 실패를 성공처럼 넘기면 내역이 없는 이유를 알 수 없다.
+    console.error('QR 결제 실행 실패:', error);
+    alert(error?.message || '결제에 실패했습니다.');
+  } finally {
+    qrToken.value = null;           // 한 번 쓴 토큰은 재사용되지 않는다
+    cancelPayment();
+  }
 };
 
 
@@ -697,6 +692,10 @@ const refreshPayment = async () => {
 
               <span>{{ card.name }}</span>
 
+              <span v-if="card.reasons?.length" class="benefit-reason">
+                {{ card.reasons[0].split(',')[0] }}
+              </span>
+
               <span class="quick-card-detail-link" @click.stop="openDetail(card)">
                 상세보기
               </span>
@@ -727,7 +726,12 @@ const refreshPayment = async () => {
               :alt="card.name"
             />
 
-            <span>{{ card.name }}</span>
+            <div class="card-info">
+              <span class="card-name">{{ card.name }}</span>
+              <span v-if="card.reasons?.length" class="benefit-reason">
+                {{ card.reasons[0].split(',')[0] }}
+              </span>
+            </div>
 
             <span class="quick-card-detail-link" @click.stop="openDetail(card)">
               상세보기
@@ -908,9 +912,10 @@ const refreshPayment = async () => {
 
   <!-- QR 모달 -->
   <PaymentQRModal v-if="showQRModal"
+                  :qr-token="qrToken"
                   @close="cancelPayment"
                   @timeout="cancelPayment"
-                  @success="cancelPayment" />
+                  @success="onQrSuccess" />
 
 <BottomNavigation/>
 
@@ -1356,12 +1361,30 @@ main {
 
 }
 
-.quick-card-item span {
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  flex: 1;
+  min-width: 0;
+}
 
+.card-name {
   font-size: var(--font-sm);
   font-weight: var(--font-semibold);
   color: var(--color-text-primary);
+}
 
+.benefit-amount {
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+  color: var(--color-primary-dark);
+}
+
+.benefit-reason {
+  font-size: var(--font-xs);
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
 }
 
 .quick-card-item .quick-card-detail-link {

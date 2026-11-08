@@ -1,7 +1,8 @@
 ﻿<script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePersonalizationStore } from '@/stores/personalization';
+import { getPersonalization, updatePersonalization } from '@/api/personalizationApi';
 
 import PageHeader from '@/components/common/PageHeader.vue';
 import AppButton from '@/components/common/AppButton.vue';
@@ -264,18 +265,71 @@ const removeTag = (category, index) => {
   category.tags.splice(index, 1);
 };
 
-/**
- * 개인화 설정 저장
- * TODO: 백엔드 API 연결 예정
- */
-const savePersonalization = () => {
-  // Store에 명시적으로 업데이트
-  personalizationStore.updateCategories(categories.value);
+// API에서 개인화 설정 조회 후 store 초기화
+const loadPersonalization = async () => {
+  try {
+    const response = await getPersonalization();
 
-  console.log('개인화 설정 저장:', categories.value);
+    // API 응답의 그룹/서브카테고리 구조를 store 형식으로 변환
+    const categoryMap = new Map();
+    if (response?.groups) {
+      for (const group of response.groups) {
+        for (const child of group.children) {
+          categoryMap.set(child.categoryCode, {
+            id: child.categoryId,
+            checked: child.selected,
+            tags: child.brands || [],
+          });
+        }
+      }
+    }
 
-  router.go(-1);
+    // store의 categories를 업데이트
+    categories.value = categories.value.map(cat => ({
+      ...cat,
+      id: categoryMap.get(cat.key)?.id || null,
+      checked: categoryMap.get(cat.key)?.checked || false,
+      tags: categoryMap.get(cat.key)?.tags || [],
+    }));
+  } catch (error) {
+    console.error('개인화 설정 조회 실패:', error);
+  }
 };
+
+const savePersonalization = async () => {
+  try {
+    // 선택된 카테고리의 ID만 수집
+    const categoryIds = categories.value
+      .filter(c => c.checked && c.id)
+      .map(c => c.id);
+
+    // 모든 브랜드를 배열로 변환 (categoryId + brandName)
+    const brands = [];
+    for (const category of categories.value) {
+      if (category.checked && category.id) {
+        for (const brand of category.tags) {
+          brands.push({
+            categoryId: category.id,
+            brandName: brand,
+          });
+        }
+      }
+    }
+
+    await updatePersonalization({ categoryIds, brands });
+    personalizationStore.updateCategories(categories.value);
+    showToast('success', '개인화 설정이 저장되었습니다.');
+    router.go(-1);
+  } catch (error) {
+    console.error('개인화 설정 저장 실패:', error);
+    showToast('error', error?.message || '개인화 설정 저장에 실패했습니다.');
+  }
+};
+
+// 초기 로드
+onMounted(() => {
+  loadPersonalization();
+});
 
 
 </script>
@@ -420,12 +474,13 @@ const savePersonalization = () => {
 
 /* 개인화 설정 전체 화면 */
 .personalization-setting-view {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   background-color: var(--color-bg);
-  margin: 0 auto;
-  max-width: 480px;
   box-sizing: border-box;
 }
 
@@ -433,7 +488,7 @@ const savePersonalization = () => {
 .content-container {
   flex: 1;
   padding: var(--space-md);
-  padding-bottom: 120px;
+  padding-bottom: calc(var(--space-xl) + var(--space-2xl) + var(--space-xl));
   /*
     하단 고정 버튼 영역과 겹치지 않도록 여유 공간 확보
     (모바일 화면 기준)
@@ -636,9 +691,11 @@ const savePersonalization = () => {
   position: fixed;
 
   bottom: 0;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
 
   width: 100%;
+  max-width: 480px;
 
   padding: var(--space-sm) var(--space-md);
 

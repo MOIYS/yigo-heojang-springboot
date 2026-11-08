@@ -1,9 +1,11 @@
 <script setup>
 
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useCardStore } from '@/stores/cardStore';
+import { getUserCardDetail } from '@/api/cardApi';
+import { getCardMonthlyStatus, getTransactions } from '@/api/walletApi';
 
 import PageHeader from '@/components/common/PageHeader.vue';
 import BottomNavigation from '@/components/layout/BottomNavigation.vue';
@@ -25,15 +27,18 @@ const showEditModal = ref(false);
 
 // 삭제 확인 모달
 const showDeleteModal = ref(false);
+const isLandscapeImage = ref(false);
+
+const handleCardImageLoad = (event) => {
+  const image = event.currentTarget;
+  isLandscapeImage.value = image.naturalWidth > image.naturalHeight;
+};
 
 // 수정 대상
 const editType = ref('');
 
-// 카드 별칭
-const cardAlias = ref('월급 생활비 카드');
-
-// 카드 메모
-const cardMemo = ref('카페 할인용으로 사용하는 카드');
+// 카드 메모 (별칭 + 메모 통합)
+const cardMemo = ref('');
 
 // 입력 임시 값
 const editValue = ref('');
@@ -43,18 +48,7 @@ const openMenu = () => {
   showMenu.value = !showMenu.value;
 };
 
-// 별칭 수정 열기
-const editAlias = () => {
-  editType.value = 'alias';
-
-  editValue.value = cardAlias.value;
-
-  showEditModal.value = true;
-
-  showMenu.value = false;
-};
-
-// 메모 수정 열기
+// 메모 추가/수정 열기
 const editMemo = () => {
   editType.value = 'memo';
 
@@ -65,12 +59,13 @@ const editMemo = () => {
   showMenu.value = false;
 };
 
+// 메모 삭제
+const deleteMemo = () => {
+  cardMemo.value = '';
+};
+
 // 수정 저장
 const saveEdit = () => {
-  if (editType.value === 'alias') {
-    cardAlias.value = editValue.value;
-  }
-
   if (editType.value === 'memo') {
     cardMemo.value = editValue.value;
   }
@@ -118,21 +113,102 @@ const confirmDelete = () => {
 
 };
 
-// 임시 데이터
-// 추후 카드 상세 API 연결
-const card = {
+const card = ref({
   id: route.params.id,
-
-  name: 'Deep Dream (체크)',
-
-  company: '신한카드',
-
+  name: '',
+  company: '',
   owner: '본인',
-
-  cardNumber: '1234567890127034',
-
+  cardNumber: '',
   image: '/images/cards/shinhan.png',
+});
+
+const recentTransactions = ref([]);
+
+// 주요 혜택 달성 막대 — GET /api/cards/{userCardId}/monthly-status 의 benefits[]
+const benefitProgress = ref([]);
+
+// 최대 몇 줄까지 보여줄지. 원래 화면이 세 줄이었던 걸 그대로 유지한다.
+const BENEFIT_PROGRESS_LIMIT = 3;
+
+/**
+ * 혜택 이용현황을 진행률 막대가 쓰는 형태로 옮긴다.
+ *
+ * - monthlyLimit이 없는 혜택은 usageRate가 null로 온다. 한도가 없으면 "몇 % 썼다"가
+ *   성립하지 않으므로 막대로 그리지 않고 뺀다.
+ * - limitGroupCode가 같은 혜택들은 한도를 공유해서 서버가 같은 값을 내려준다.
+ *   그대로 두면 같은 수치가 여러 줄 반복되므로 코드당 한 줄로 묶는다.
+ * - 이용률이 높은 것부터 보여준다. 한도가 임박한 혜택이 먼저 눈에 들어와야 한다.
+ */
+const toBenefitProgress = (benefits) => {
+  const seenGroups = new Set();
+  const rows = [];
+
+  for (const benefit of benefits) {
+    if (benefit?.usageRate == null) {
+      continue;
+    }
+
+    if (benefit.limitGroupCode) {
+      if (seenGroups.has(benefit.limitGroupCode)) {
+        continue;
+      }
+      seenGroups.add(benefit.limitGroupCode);
+    }
+
+    rows.push({
+      key: benefit.limitGroupCode || `benefit-${benefit.benefitId}`,
+      name: benefit.benefitName,
+      // 한도를 넘겨 100%를 초과해 오더라도 막대가 칸을 삐져나가지 않게 자른다.
+      rate: Math.min(100, Math.max(0, Math.round(Number(benefit.usageRate)))),
+    });
+  }
+
+  return rows
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, BENEFIT_PROGRESS_LIMIT);
 };
+
+const loadCard = async () => {
+  try {
+    const data = await getUserCardDetail(route.params.id);
+    card.value = {
+      ...card.value,
+      ...data,
+      id: data.userCardId,
+      name: data.cardName,
+      company: data.issuerName,
+      image: data.imageUrl,
+    };
+
+    // 이 카드의 거래 데이터 로드
+    const params = { userCardId: card.value.userCardId };
+    const transactionResponse = await getTransactions(params);
+    const transactions = transactionResponse?.transactions || [];
+    recentTransactions.value = transactions.slice(0, 3).map((t) => ({
+      date: t.paymentDate.split('T')[0].slice(5),
+      merchant: t.merchantName || t.categoryName,
+      amount: `-${t.paymentAmount.toLocaleString()}원`,
+    }));
+  } catch (error) {
+    console.error('카드 상세 조회 실패:', error);
+  }
+
+  // 카드 상세 조회가 실패했으면 카드 id를 모르는 상태라 여기서 멈춘다.
+  if (!card.value.userCardId) {
+    return;
+  }
+
+  // 혜택 현황은 별도 API라 따로 잡는다. 이쪽이 실패해도 카드 정보와 이용내역은 남는다.
+  try {
+    const status = await getCardMonthlyStatus(card.value.userCardId);
+    benefitProgress.value = toBenefitProgress(status?.benefits || []);
+  } catch (error) {
+    console.error('카드 혜택 현황 조회 실패:', error);
+    benefitProgress.value = [];
+  }
+};
+
+onMounted(loadCard);
 
 // 카드번호 표시
 const maskCardNumber = (number) => {
@@ -144,25 +220,20 @@ const maskCardNumber = (number) => {
 };
 
 // 혜택 상세 이동
+// card 는 ref 라 스크립트에서는 .value 를 거쳐야 한다. 템플릿은 자동 언랩이라
+// card.id 로 써도 보이지만, 여기서 빠뜨리면 /benefits/undefined 로 이동한다.
 const goBenefitDetail = () => {
-  router.push(`/benefits/${card.id}`);
+  router.push(`/benefits/${card.value.id}`);
 };
 
 // 소비내역 이동 (이 카드의 소비내역만 필터링해서 보여줌)
 const goTransaction = () => {
   router.push({
     path: '/transactions',
-    query: { cardId: card.id, cardName: card.name },
+    query: { cardId: card.value.userCardId, cardName: card.value.name },
   });
 };
 
-// 메모 표시 여부
-const showMemo = ref(false);
-
-// 별칭 클릭 시 메모 열기/닫기
-const toggleMemo = () => {
-  showMemo.value = !showMemo.value;
-};
 </script>
 
 
@@ -191,13 +262,8 @@ const toggleMemo = () => {
       class="menu-popover"
     >
 
-      <button @click="editAlias">
-        별칭 수정
-      </button>
-
-
       <button @click="editMemo">
-        메모 수정
+        {{ cardMemo ? '메모 수정' : '메모 추가' }}
       </button>
 
 
@@ -217,49 +283,52 @@ const toggleMemo = () => {
 
     <!-- 카드 이미지 -->
     <section class="card-image-section">
-      <img :src="card.image" :alt="card.name" class="card-image" />
+      <div v-if="card.image" class="card-image-frame">
+        <img
+          :src="card.image"
+          :alt="card.name"
+          class="card-image"
+          :class="{ portrait: !isLandscapeImage }"
+          @load="handleCardImageLoad"
+        />
+      </div>
     </section>
 
     <!-- 카드 정보 -->
 <section class="card-info">
 
   <div class="card-header">
-
-    <h1>
-      {{ card.name }}
-    </h1>
-
-    <div class="alias-section">
-
-      <button
-        class="alias-tag"
-        @click="toggleMemo"
-      >
-        {{ cardAlias }}
-      </button>
-
-      <!-- 별칭 아래 메모 -->
-      <div
-        v-if="showMemo"
-        class="memo-box"
-      >
-        {{ cardMemo }}
+    <div class="card-title-row">
+      <div class="card-left">
+        <h1 class="card-name">
+          {{ card.name }}
+        </h1>
+        <span class="number">
+          [{{ card.owner }}] {{ maskCardNumber(card.maskedCardNumber) }}
+        </span>
       </div>
 
+      <div class="card-divider">|</div>
+
+      <div class="card-right">
+        <!-- 카드사명 항상 표시 -->
+        <div class="company-display">
+          {{ card.company }}
+        </div>
+      </div>
     </div>
 
+    <!-- 메모가 있으면 아래에 메모 + 삭제버튼 표시 -->
+    <div v-if="cardMemo" class="memo-display">
+      <span>{{ cardMemo }}</span>
+      <button class="delete-memo-btn" @click="deleteMemo">×</button>
+    </div>
   </div>
 
   <div class="card-details">
-
     <p class="company">
       {{ card.company }}
     </p>
-
-    <p class="number">
-      {{ card.owner }} {{ maskCardNumber(card.cardNumber) }}
-    </p>
-
   </div>
 
 </section>
@@ -270,103 +339,57 @@ const toggleMemo = () => {
     </button>
 
     <!-- 혜택 달성 -->
-    <section class="benefit-progress">
+    <section v-if="benefitProgress.length" class="benefit-progress">
       <h2>주요 혜택 달성</h2>
 
-      <div class="benefit-item">
+      <div
+        v-for="benefit in benefitProgress"
+        :key="benefit.key"
+        class="benefit-item"
+      >
         <div class="benefit-title">
-          <span> 스타벅스 </span>
+          <span> {{ benefit.name }} </span>
 
-          <span> 80% </span>
+          <span> {{ benefit.rate }}% </span>
         </div>
 
         <div class="progress-bar">
-          <div class="progress" style="width: 80%" />
-        </div>
-      </div>
-
-      <div class="benefit-item">
-        <div class="benefit-title">
-          <span> 편의점 </span>
-
-          <span> 60% </span>
-        </div>
-
-        <div class="progress-bar">
-          <div class="progress" style="width: 60%" />
-        </div>
-      </div>
-
-      <div class="benefit-item">
-        <div class="benefit-title">
-          <span> 온라인쇼핑 </span>
-
-          <span> 40% </span>
-        </div>
-
-        <div class="progress-bar">
-          <div class="progress" style="width: 40%" />
+          <div class="progress" :style="{ width: benefit.rate + '%' }" />
         </div>
       </div>
     </section>
 
-    <!-- 최근 소비내역 -->
+    <!-- 카드이용내역 -->
     <section class="transaction-section">
-      <h2>최근 소비내역</h2>
+      <h2>카드이용내역</h2>
 
-      <div class="transaction-item">
-        <span> 07.28 </span>
+      <div v-for="(transaction, index) in recentTransactions" :key="index" class="transaction-item">
+        <span> {{ transaction.date }} </span>
 
-        <span> 스타벅스 </span>
+        <span> {{ transaction.merchant }} </span>
 
-        <span> -6,200원 </span>
-      </div>
-
-      <div class="transaction-item">
-        <span> 07.27 </span>
-
-        <span> CU </span>
-
-        <span> -4,500원 </span>
-      </div>
-
-      <div class="transaction-item">
-        <span> 07.26 </span>
-
-        <span> 올리브영 </span>
-
-        <span> -28,900원 </span>
+        <span> {{ transaction.amount }} </span>
       </div>
 
       <button class="more-button" @click="goTransaction">+ 더보기</button>
     </section>
 
-    <!-- 별칭/메모 수정 모달 -->
+    <!-- 메모 추가/수정 모달 -->
     <div v-if="showEditModal" class="modal-overlay">
       <div class="edit-modal">
-        <h3>
-          {{ editType === 'alias' ? '별칭' : '메모' }}
-        </h3>
+        <h3>메모</h3>
 
         <input
           v-model="editValue"
           placeholder="내용을 입력해주세요"
-          :maxlength="editType === 'memo' ? 25 : editType === 'alias' ? 15 : undefined"
+          maxlength="100"
         />
 
-        <div v-if="editType === 'memo'" class="input-info">
+        <div class="input-info">
           <span
-            :class="{ 'warning': editValue.length > 25 }"
+            :class="{ 'warning': editValue.length > 100 }"
           >
-            {{ editValue.length }}/25
-          </span>
-        </div>
-
-        <div v-if="editType === 'alias'" class="input-info">
-          <span
-            :class="{ 'warning': editValue.length > 15 }"
-          >
-            {{ editValue.length }}/15
+            {{ editValue.length }}/100
           </span>
         </div>
 
@@ -423,12 +446,34 @@ const toggleMemo = () => {
 .card-image-section {
   display: flex;
   justify-content: center;
-  margin-bottom: var(--space-md);
+  margin: var(--space-sm) 0 var(--space-xl);
+  min-height: 176px;
+}
+
+.card-image-frame {
+  width: min(100%, 286px);
+  aspect-ratio: 1.586 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.14));
 }
 
 .card-image {
-  width: 220px;
-  border-radius: var(--radius-md);
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+}
+
+.card-image.portrait {
+  width: 176px;
+  height: 286px;
+  max-width: none;
+  transform: rotate(90deg);
 }
 
 /* ---------------- 카드 정보 ---------------- */
@@ -439,8 +484,47 @@ const toggleMemo = () => {
 
 .card-header {
   display: flex;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.card-title-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+}
+
+.card-left {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.card-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  position: relative;
+}
+
+.card-divider {
+  color: var(--color-border);
+  font-size: var(--font-md);
+  display: flex;
+  align-items: center;
+}
+
+.card-name {
+  margin: 0;
+  font-weight: var(--font-semibold);
 }
 
 .alias-section {
@@ -452,54 +536,74 @@ const toggleMemo = () => {
 
 .card-info h1 {
   margin: 0;
-  font-size: var(--font-xl);
+  font-size: var(--font-md);
   color: var(--color-text-primary);
   font-weight: var(--font-bold);
   flex-shrink: 0;
 }
 
 .card-details {
-  margin-top: var(--space-md);
-  padding-top: var(--space-md);
+  margin-top: 0;
+  padding-top: 0;
   display: flex;
-  gap: var(--space-sm);
+  flex-direction: column;
+  gap: 2px;
   align-items: center;
+  text-align: center;
 }
 
 .company {
-  margin: 0;
+  display: none;
+}
+
+.company-display {
+  color: var(--color-text-secondary);
+  font-size: var(--font-md);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.card-company {
+  margin-top: var(--space-xs);
   color: var(--color-text-secondary);
   font-size: var(--font-sm);
+  white-space: nowrap;
 }
 
 .number {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-sm);
-}
-
-/* ---------------- 별칭 ---------------- */
-
-.alias-tag {
-  border: none;
-  background: var(--color-bg);
-
-  color: var(--color-text-secondary);
-
-  border-radius: var(--radius-full);
-
-  padding: var(--space-xxs) var(--space-sm);
-
-  font-size: var(--font-xs);
-
-  cursor: pointer;
-
-  display: inline-block;
   white-space: nowrap;
 }
 
-.arrow {
-  font-size: 10px;
+/* ---------------- 메모 ---------------- */
+
+.memo-display {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-md);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.delete-memo-btn {
+  border: none;
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-lg);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-memo-btn:hover {
+  color: var(--color-coral);
 }
 
 /* ---------------- 메모 (포스트잇) ---------------- */
@@ -706,26 +810,28 @@ h2 {
 .modal-overlay {
   position: fixed;
   inset: 0;
-
+  width: 100%;
+  max-width: 480px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0 auto;
   background: rgba(0, 0, 0, 0.4);
-
   display: flex;
-
   align-items: center;
-
   justify-content: center;
-
   z-index: var(--z-modal);
 }
 
 .edit-modal {
-  width: 85%;
-
+  width: 90%;
+  max-width: 480px;
   background: var(--color-surface);
-
-  border-radius: var(--radius-lg);
-
-  padding: var(--space-xl);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 .edit-modal h3 {

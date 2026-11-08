@@ -14,13 +14,13 @@
     </RouterLink>
 
 
-    <RouterLink to="/payment" class="nav-link">
+    <RouterLink to="/payment" class="nav-link" id="bottom-nav-payment">
       <Icon name="payment" size="md" />
       <span>결제</span>
     </RouterLink>
 
 
-    <RouterLink to="/points" class="nav-link">
+    <RouterLink to="/points" class="nav-link" id="bottom-nav-point">
       <Icon name="benefit" size="md" />
       <span>혜택</span>
     </RouterLink>
@@ -63,9 +63,13 @@ import Icon from '@/components/common/Icon.vue';
 
   bottom: 0;
 
-  left: 0;
+  left: 50%;
+
+  transform: translateX(-50%);
 
   width: 100%;
+
+  max-width: 480px;
 
 
   z-index: var(--z-sticky);

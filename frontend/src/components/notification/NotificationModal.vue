@@ -41,7 +41,8 @@ const closeModal = () => {
 
 
 // 확인 버튼
-// TODO: 추후 PATCH /notifications/{id}/read 연결
+// 읽음 처리는 부모(NotificationView)가 PATCH /api/notifications/{id}/read 로 처리한다.
+// 모달은 "확인했다"는 사실만 올려보내고 통신은 관여하지 않는다.
 const confirmNotification = () => {
 
   emit('read', props.notification.id);
@@ -144,7 +145,7 @@ const confirmNotification = () => {
 
 
 
-  <p>
+  <p class="message">
     {{ notification.detail.message }}
   </p>
 
@@ -189,6 +190,11 @@ const confirmNotification = () => {
   position:fixed;
 
   inset:0;
+  width:100%;
+  max-width:480px;
+  left:50%;
+  transform:translateX(-50%);
+  margin:0 auto;
 
   display:flex;
 
@@ -210,7 +216,13 @@ const confirmNotification = () => {
 
   width:calc(100% - 40px);
 
-  max-width:360px;
+  max-width:480px;
+
+  /* 다이제스트는 항목이 여러 줄이라 길어질 수 있다. 화면을 넘기면 확인 버튼이
+     잘려서 모달을 닫을 방법이 × 밖에 안 남으므로 안에서 스크롤시킨다. */
+  max-height:80vh;
+
+  overflow-y:auto;
 
   padding:24px;
 
@@ -219,6 +231,8 @@ const confirmNotification = () => {
   border-radius:20px;
 
   box-shadow:0 10px 30px rgba(0,0,0,0.15);
+
+  box-sizing: border-box;
 
 }
 
@@ -246,27 +260,57 @@ const confirmNotification = () => {
 
 
 
+/* 오른쪽 여백은 닫기(×) 버튼 자리다. 없으면 긴 제목의 첫 줄이 버튼 밑으로 파고든다. */
 .modal-content h2 {
 
-  margin:0 0 16px;
+  margin:0 0 var(--space-md);
+
+  padding-right: var(--space-lg);
 
   font-size: var(--font-lg);
 
   font-weight: var(--font-bold);
 
+  line-height:1.45;
+
+  word-break: keep-all;
+
+  overflow-wrap: break-word;
+
 }
 
 
 
-.message {
+.detail-area {
 
-  margin-bottom:16px;
+  display:flex;
 
-  line-height:1.6;
+  flex-direction:column;
 
-  font-size:15px;
+  gap: var(--space-xs);
+
+}
+
+
+
+/* 다이제스트 본문은 서버가 줄바꿈(CONCAT_WS(CHAR(10), ...))으로 항목을 나눠 보낸다.
+   pre-line 이 없으면 HTML 이 그 줄바꿈을 공백으로 접어 한 문단으로 뭉개진다 —
+   "소진 (100.0%) 마이핏카드(적립형) 묶음..." 처럼 항목 경계가 사라진다. */
+.detail-area p {
+
+  margin:0;
+
+  white-space: pre-line;
+
+  line-height:1.65;
+
+  font-size: var(--font-sm);
 
   color:var(--color-text-primary);
+
+  word-break: keep-all;
+
+  overflow-wrap: break-word;
 
 }
 
@@ -274,7 +318,11 @@ const confirmNotification = () => {
 
 .date {
 
-  font-size:13px;
+  display:block;
+
+  margin-top: var(--space-md);
+
+  font-size: var(--font-xs);
 
   color:var(--color-text-tertiary);
 

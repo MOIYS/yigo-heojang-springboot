@@ -28,7 +28,22 @@ export const useAuthStore = defineStore(
 
       try {
 
-        return JSON.parse(savedUser)
+        const parsed = JSON.parse(savedUser)
+
+
+        // 프로필 사진 필드가 한때 profileImage와 profileImageUrl 두 이름으로 갈렸다.
+        // 지금은 profileImageUrl 하나만 쓴다 — 예전 이름으로 저장해 둔 기기에서
+        // 사진이 사라지지 않도록 여기서 한 번 옮겨준다.
+        if (parsed && !parsed.profileImageUrl && parsed.profileImage) {
+
+          parsed.profileImageUrl = parsed.profileImage
+
+          delete parsed.profileImage
+
+        }
+
+
+        return parsed
 
       } catch (error) {
 
@@ -52,34 +67,22 @@ export const useAuthStore = defineStore(
 
 
 
-   
+
     // 로그인
-   const setLogin = (
-  loginToken,
-  userInfo
-) => {
+    const setLogin = (loginToken, userInfo) => {
+      console.log('로그인 userInfo 확인:', userInfo);
 
-  console.log('로그인 userInfo 확인:', userInfo);
+      token.value = loginToken;
+      user.value = userInfo;
 
+      localStorage.setItem('token', loginToken);
+      localStorage.setItem('user', JSON.stringify(userInfo));
+    };
 
-  token.value = loginToken;
-
-  user.value = userInfo;
-
-
-  localStorage.setItem(
-    'token',
-    loginToken
-  );
-
-
-  localStorage.setItem(
-    'user',
-    JSON.stringify(userInfo)
-  );
-
-};
-
+    const setAccessToken = (newAccessToken) => {
+      token.value = newAccessToken;
+      localStorage.setItem('token', newAccessToken);
+    };
     const updateUser = (updatedUser) => {
 
   user.value = {
@@ -142,12 +145,16 @@ export const useAuthStore = defineStore(
 
   setLogin,
 
+  setAccessToken,
+
   updateUser,
 
   logout,
 
   isLogin
 
+
 }
   }
 )
+// 07_25 연동 변경: 로그인 토큰과 인증 상태를 실제 인증 API 기준으로 관리한다.

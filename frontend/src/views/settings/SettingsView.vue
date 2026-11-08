@@ -1,11 +1,14 @@
-﻿<script setup>
+<script setup>
 import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 
 import { useAuthStore } from '@/stores/authStore';
+import { useToast } from '@/composables/useToast';
+import { updateMyInfo } from '@/api/memberApi';
 
 import PageHeader from '@/components/common/PageHeader.vue';
+import Icon from '@/components/common/Icon.vue';
 import BottomNavigation from '@/components/layout/BottomNavigation.vue';
 import ProfileEditBottomSheet from '@/components/settings/ProfileEditBottomSheet.vue';
 
@@ -14,14 +17,18 @@ const router = useRouter();
 
 
 // 로그인 상태
-// TODO : 백엔드/Pinia 인증 상태 연결
 const authStore = useAuthStore();
 
 const { user } = storeToRefs(authStore);
 
+const { showToast } = useToast();
+
 
 // 프로필 수정 바텀시트
 const isProfileSheetOpen = ref(false);
+
+// 저장 중에는 버튼을 잠가 같은 요청이 두 번 나가지 않게 한다.
+const isSavingProfile = ref(false);
 
 
 // 보기 설정
@@ -125,15 +132,73 @@ const closeProfileEdit = () => {
 
 
 
-// 프로필 저장
-const updateProfile = (updatedUser) => {
+// 프로필 저장 — PATCH /api/members/me
+//
+// 서버가 받는 건 닉네임뿐이다. 프로필 이미지는 아직 저장 API가 없어
+// 예전처럼 로컬에만 남긴다(기기를 바꾸면 사라진다).
+//
+// 저장에 실패하면 시트를 닫지 않는다. 닫아버리면 사용자는 저장된 줄 알고 나가고,
+// 화면에는 서버에 없는 닉네임이 남는다.
+const updateProfile = async (updatedUser) => {
 
-  // TODO : 실제 API 연결 시 수정 API 호출
+  const nickname = (updatedUser?.nickname ?? '').trim();
 
-  authStore.updateUser(updatedUser);
+  // 서버가 빈 닉네임을 400으로 막는다. 굳이 왕복하지 않고 여기서 걸러 안내한다.
+  if (!nickname) {
 
+    showToast('error', '닉네임을 입력해주세요.');
 
-  closeProfileEdit();
+    return;
+
+  }
+
+  if (nickname.length > 50) {
+
+    showToast('error', '닉네임은 50자 이하로 입력해주세요.');
+
+    return;
+
+  }
+
+  if (isSavingProfile.value) {
+
+    return;
+
+  }
+
+  isSavingProfile.value = true;
+
+  try {
+
+    // 서버가 저장 결과를 그대로 돌려준다. 화면에는 내가 보낸 값이 아니라
+    // 서버가 확정한 값을 반영해야 다음 조회와 어긋나지 않는다.
+    const savedMember = await updateMyInfo(nickname);
+
+    authStore.updateUser({
+      ...savedMember,
+      profileImageUrl: updatedUser?.profileImageUrl ?? '',
+    });
+
+    showToast('success', '프로필이 수정되었습니다.');
+
+    closeProfileEdit();
+
+  } catch (error) {
+
+    console.error('프로필 수정 실패:', error);
+
+    showToast(
+      'error',
+      error?.response?.data?.message
+        || error?.message
+        || '프로필 수정에 실패했습니다.',
+    );
+
+  } finally {
+
+    isSavingProfile.value = false;
+
+  }
 
 };
 
@@ -175,22 +240,18 @@ const logout = () => {
 
 
         <div class="profile-image-wrapper">
-
-
           <img
             v-if="user.profileImageUrl"
             :src="user.profileImageUrl"
             alt="프로필 이미지"
             class="profile-image"
           />
-
-
           <div
             v-else
             class="profile-image default-image"
-          />
-
-
+          >
+            {{ user.nickname?.charAt(0) || user.name?.charAt(0) || '👤' }}
+          </div>
         </div>
 
 
@@ -213,9 +274,7 @@ const logout = () => {
               @click="openProfileEdit"
             >
 
-              <span class="material-icons">
-                edit
-              </span>
+              <Icon name="edit" size="md" />
 
             </button>
 
@@ -257,7 +316,6 @@ const logout = () => {
 
 
 
-
       <!-- 설정 메뉴 -->
 
       <section class="menu-list">
@@ -286,7 +344,6 @@ const logout = () => {
 
 
 
-
         <!-- 알림 -->
 
         <div
@@ -305,7 +362,6 @@ const logout = () => {
 
 
         </div>
-
 
 
 
@@ -350,7 +406,6 @@ const logout = () => {
 
 
 
-
         <!-- 계정 및 보안 -->
 
         <div
@@ -373,7 +428,6 @@ const logout = () => {
 
 
       </section>
-
 
 
 
@@ -406,7 +460,6 @@ const logout = () => {
 
 
 
-
     <!-- 프로필 수정 바텀시트 -->
 
     <ProfileEditBottomSheet
@@ -415,12 +468,13 @@ const logout = () => {
 
       :user="user"
 
+      :saving="isSavingProfile"
+
       @close="closeProfileEdit"
 
       @save="updateProfile"
 
     />
-
 
 
 
@@ -436,66 +490,36 @@ const logout = () => {
 </template>
 
 <style scoped>
-
 .settings-view {
-
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-
-  background: var(--color-bg);
-
-  display:flex;
-
-  flex-direction:column;
-
+  background-color: var(--color-bg);
+  box-sizing: border-box;
   padding: var(--space-md);
   padding-bottom: calc(var(--space-xl) + var(--space-2xl) + var(--space-xl));
-
-  margin: 0 auto;
-
-  max-width: 480px;
-
-  box-sizing: border-box;
-
-  overflow: hidden visible;
-
 }
-
-
-
-/* 본문 */
 
 .settings-content {
-
-  flex:1;
-
+  flex: 1;
   padding-bottom: calc(var(--space-xl) + var(--space-2xl) + var(--space-xl));
-
 }
 
-
-
-/* 프로필 (Bento: 강조 셀 + Soft Glassmorphism) */
-
 .profile-section {
-
   border-radius: var(--radius-xl);
-
   padding: var(--space-2xl) var(--space-lg);
-
-  display:flex;
-
-  flex-direction:column;
-
-  align-items:center;
-
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   margin-bottom: var(--space-lg);
-
   background: linear-gradient(135deg, rgba(var(--color-primary-dark-rgb), 0.12) 0%, rgba(var(--color-primary-dark-rgb), 0.04) 100%);
   border: 1px solid rgba(var(--color-primary-dark-rgb), 0.2);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
 }
 
 [data-theme="dark"] .profile-section {
@@ -504,253 +528,135 @@ const logout = () => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-
-
 .guest-profile {
-
   gap: var(--space-md);
-
 }
-
-
 
 .guest-profile p {
-
-  margin:0;
-
+  margin: 0;
   color: var(--color-text-secondary);
-
   font-size: var(--font-sm);
-
 }
 
-
-
 .login-button {
-
-  border:none;
-
+  border: none;
   background: linear-gradient(90deg, var(--color-btn-primary-start), var(--color-btn-primary-end));
-
   color: var(--color-btn-primary-text);
-
   padding: var(--space-xs) var(--space-xl);
-
   border-radius: var(--radius-lg);
-
   font-size: var(--font-sm);
-
   font-weight: var(--font-semibold);
-
-  cursor:pointer;
-
+  cursor: pointer;
   transition: var(--transition-fast);
-
 }
 
 .login-button:hover {
-
   opacity: 0.9;
-
 }
-
-
-
-
 
 .profile-image-wrapper {
-
-  width:88px;
-
-  height:88px;
-
+  width: 88px;
+  height: 88px;
 }
-
-
 
 .profile-image {
-
-  width:100%;
-
-  height:100%;
-
+  width: 100%;
+  height: 100%;
   border-radius: var(--radius-full);
-
-  object-fit:cover;
-
+  object-fit: cover;
 }
-
-
 
 .default-image {
-
-  background: var(--color-border);
-
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: var(--font-bold);
+  color: white;
 }
 
-
+[data-theme="dark"] .default-image {
+  color: black;
+}
 
 .profile-info {
-
   margin-top: var(--space-sm);
-
 }
-
-
 
 .nickname-area {
-
-  display:flex;
-
-  align-items:center;
-
+  display: flex;
+  align-items: center;
   gap: var(--space-xs);
-
 }
-
-
 
 .nickname {
-
   font-size: var(--font-2xl);
-
   font-weight: var(--font-bold);
-
   letter-spacing: -0.3px;
-
   color: var(--color-text-primary);
-
 }
 
-
-
 .edit-profile-button {
-
-  width:28px;
-
-  height:28px;
-
-  border:none;
-
+  width: 36px;
+  height: 36px;
+  border: none;
   background: rgba(255, 255, 255, 0.4);
-
   border-radius: var(--radius-full);
-
-  display:flex;
-
-  align-items:center;
-
-  justify-content:center;
-
-  cursor:pointer;
-
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   transition: var(--transition-fast);
-
+  color: var(--color-text-secondary);
 }
 
 .edit-profile-button:hover {
-
   background: rgba(255, 255, 255, 0.6);
-
 }
 
 [data-theme="dark"] .edit-profile-button {
-
   background: rgba(255, 255, 255, 0.08);
-
+  color: white;
 }
 
 [data-theme="dark"] .edit-profile-button:hover {
-
   background: rgba(255, 255, 255, 0.14);
-
 }
-
-
-
-.edit-profile-button .material-icons {
-
-  font-size: var(--font-md);
-
-  color: var(--color-text-secondary);
-
-}
-
-
-
-
-
-/* 설정 메뉴 */
 
 .menu-list {
-
   background: var(--color-surface);
-
   border-radius: var(--radius-lg);
-
   overflow: visible;
-
   box-shadow: var(--shadow-card);
-
   position: relative;
-
 }
 
-
-
 .menu-item {
-
-  min-height:56px;
-
+  min-height: 56px;
   padding: 0 var(--space-md);
-
-  display:flex;
-
-  justify-content:space-between;
-
-  align-items:center;
-
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-bottom: 1px solid var(--color-bg);
-
   font-size: var(--font-sm);
-
   color: var(--color-text-primary);
-
-  cursor:pointer;
-
+  cursor: pointer;
   transition: var(--transition-fast);
-
 }
 
 .menu-item:hover {
-
   background: var(--color-bg);
-
 }
-
-
 
 .menu-item:last-child {
-
-  border-bottom:none;
-
+  border-bottom: none;
 }
-
-
 
 .menu-item span:last-child {
-
   color: var(--color-text-tertiary);
-
   font-size: var(--font-2xl);
-
 }
-
-
-
-
-
-/* 보기 설정 */
 
 .dropdown-item {
   cursor: default;
@@ -765,21 +671,16 @@ const logout = () => {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-
   border: 1.5px solid var(--color-border);
   background: var(--color-bg);
   color: var(--color-text-primary);
-
   height: 36px;
   min-width: 120px;
   padding: var(--space-xs) var(--space-md);
-
   border-radius: var(--radius-md);
-
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
   cursor: pointer;
-
   transition: all var(--transition-fast);
 }
 
@@ -817,15 +718,12 @@ const logout = () => {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-
   min-width: 140px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   overflow: hidden;
-
   z-index: 1000;
 }
 
@@ -836,15 +734,12 @@ const logout = () => {
 .dropdown-option {
   width: 100%;
   text-align: left;
-
   border: none;
   background: transparent;
   color: var(--color-text-primary);
-
   padding: var(--space-sm) var(--space-md);
   font-size: var(--font-sm);
   cursor: pointer;
-
   transition: all var(--transition-fast);
 }
 
@@ -862,52 +757,22 @@ const logout = () => {
   background: linear-gradient(135deg, rgba(var(--color-primary-dark-rgb), 0.12) 0%, rgba(var(--color-primary-dark-rgb), 0.04) 100%);
 }
 
-
-
-
-
-/* 로그아웃 */
-
 .logout-section {
-
   margin-top: var(--space-2xl);
-
-  display:flex;
-
-  justify-content:center;
-
+  display: flex;
+  justify-content: center;
 }
-
-
 
 .logout-button {
-
   border: none;
-
   background: transparent;
-
-
-  width:100%;
-
-  height:52px;
-
-
+  width: 100%;
+  height: 52px;
   border-radius: var(--radius-md);
-
-
   color: var(--color-coral);
-
-
   font-size: var(--font-sm);
-
   font-weight: var(--font-semibold);
-
-
-  cursor:pointer;
-
+  cursor: pointer;
   transition: var(--transition-fast);
-
 }
-
-
 </style>

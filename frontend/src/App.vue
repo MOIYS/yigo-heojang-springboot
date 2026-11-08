@@ -6,6 +6,7 @@ import ToastNotification from '@/components/common/ToastNotification.vue';
 onMounted(() => {
   const savedTheme = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
+
 });
 
 // 전역 토스트 — 어느 화면에서 showToast()를 호출하든 여기 하나로 렌더링됨
@@ -38,7 +39,8 @@ const { toast, closeToast } = useToast();
   overflow: hidden;
   min-height: 100vh;
   width: 100%;
-  max-width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   box-sizing: border-box;
 }
 
