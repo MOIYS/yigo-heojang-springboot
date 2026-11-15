@@ -1,136 +1,158 @@
-# Legacy API Newman baseline
+# Newman API 회귀·계약 테스트
 
-현재 Spring Legacy API 동작을 변경하지 않고 고정하는 로컬 Newman 회귀 테스트다. 애플리케이션 소스, DB 스키마, MyBatis Mapper는 수정하지 않는다.
+Spring Boot 실행 JAR이 기존 API 계약을 유지하는지 Newman으로 검증합니다.
+컬렉션의 `[legacy]`는 Legacy WAR 런타임이 아니라, 마이그레이션 후에도 의도적으로 유지하는 기존 동작을 뜻합니다.
 
-## 범위
+## 빠른 실행
 
-- 회원가입, 로그인, Access Token 인증, Token 재발급, 로그아웃
-- 회원 조회·수정
-- 카드 등록·목록·상세·삭제 및 대표카드
-- 알림 목록·읽음·삭제
-- 대표 실패 응답: 인증 누락, 잘못된 로그인, 존재하지 않는 카드·알림
-- Jackson 요청 역직렬화: 미지정 필드, 잉여 토큰, 잘못된 JSON
-- 현재 인증 필터, Bean Validation, CORS preflight 에러·헤더 기준선
-- 현재 레거시 Refresh Token 비회전·재사용 동작
-- 현재 레거시 Health 인증 동작
+### 사전 요구사항
 
-정지·탈퇴 회원과 만료 Access Token은 이번 범위에 포함하지 않는다.
+- Node.js 24와 npm
+- Docker CLI
+- 실행 중인 Spring Boot Backend, MySQL 8과 Redis 7.2
+- 대상 DB에 적용된 Flyway V1과 `data.sql`, 91, 92, 93 Seed
+- 유효한 `SIGNUP` 약관과 활성 `mock_card`
 
-## 레거시로 고정하는 동작
+DB와 Seed 준비 방법은 [Backend 실행 가이드](../backend/README.md)를 참고합니다.
+MySQL은 Docker 컨테이너를 사용하며 호스트의 MySQL CLI는 필요하지 않습니다.
 
-- `[legacy] Health - 토큰 없음 401`: `/api/health`가 JWT 필터의 공개 경로가 아니므로 `ACCESS_TOKEN_INVALID`를 반환한다.
-- `[legacy] Health - 토큰 있음 200`: 유효한 Access Token으로 `data: "ok"`를 반환한다.
-- `[legacy] 토큰 재발급 - Refresh Token 비회전`: 재발급 응답에 `Set-Cookie`가 없다.
-- `[legacy] 토큰 재발급 - 동일 Refresh Token 재사용`: 같은 Refresh Token으로 다시 재발급할 수 있다.
-
-## 파일
-
-```text
-api-test/
-├─ collections/legacy-api-regression.postman_collection.json
-├─ environments/default.postman_environment.json
-├─ fixtures/init.sql
-├─ fixtures/cleanup.sql
-├─ scripts/run.ps1
-├─ package.json
-└─ .gitignore
-```
-
-## 전제 조건
-
-- Backend와 MySQL이 이미 실행 중이어야 한다.
-- MySQL은 저장소의 Docker Compose 컨테이너를 사용한다. 기본 컨테이너 이름은 `yigo-mysql`이다.
-- 호스트의 로컬 `mysql` CLI는 사용하지 않는다.
-- 대상 DB에는 현재 유효한 `SIGNUP` 약관과 활성 `mock_card`가 최소 1개 있어야 한다.
-- Node.js, npm, Docker CLI가 필요하다.
-
-최초 한 번 Newman을 설치한다. 저장소의 lockfile 기준으로 동일한 의존성을 설치하려면 `npm ci`를 사용한다.
+### 설치 및 실행
 
 ```powershell
 cd api-test
 npm ci
-```
-
-`node_modules/`는 커밋하지 않고 `package-lock.json`은 재현 가능한 Newman 버전을 위해 함께 관리한다.
-
-## 환경변수
-
-DB 인증정보는 Postman environment나 저장소 파일에 넣지 않고 PowerShell 프로세스 환경변수로 전달한다.
-
-```powershell
 $env:DB_USER = '<local mysql user>'
 $env:DB_PASSWORD = '<local mysql password>'
+npm test
 ```
+
+`npm test`는 다음 명령으로 `run.ps1`을 실행합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
+```
+
+실행기는 `.env`를 자동으로 읽지 않습니다. DB 인증정보는 저장소 파일이나 Postman environment에 기록하지 않습니다.
+
+## 검증 범위
+
+| 영역 | 주요 검증 내용 |
+| --- | --- |
+| 회원·인증 | 회원가입, 로그인, Access Token, 재발급, 로그아웃 |
+| 회원정보 | 인증 실패, 회원 조회·수정 |
+| 보유 카드 | 등록, 목록·상세, 대표 카드 설정, 삭제 |
+| 알림 | 목록, 읽음·삭제와 실패 응답 |
+| 공통 계약 | Jackson 호환, Validation, 인증 필터, CORS preflight |
+
+정지·탈퇴 회원과 만료 Access Token은 현재 Newman 검증 범위에 포함되지 않습니다.
+
+## 기존 계약과 알려진 결함
+
+- `/api/health`는 현재 Access Token 인증을 요구합니다.
+- Access Token 재발급 시, Refresh Token을 회전하지 않으며 같은 Refresh Token을 다시 사용할 수 있습니다.
+
+| 항목 | 현재 응답 | 목표 응답 | 현재 자동 검증 |
+| --- | --- | --- | --- |
+| 잘못된 JSON 문법 | 500 | 400 | Newman·Backend |
+| 존재하지 않는 경로·trailing slash | 500 | 404 | Backend |
+| 지원하지 않는 HTTP method | 500 | 405 | 없음 |
+
+[이슈 #66](https://github.com/MOIYS/yigo-heojang-springboot/issues/66)은 현재 열려 있습니다. 결함 수정이나 의도적인 계약 변경 시 관련 assertion과 문서를 같은 작업에서 갱신합니다.
+
+## 환경변수
 
 | 환경변수 | 필수 | 기본값 | 설명 |
 | --- | --- | --- | --- |
 | `DB_USER` | 예 | 없음 | MySQL 계정 |
 | `DB_PASSWORD` | 예 | 없음 | MySQL 비밀번호 |
 | `DB_CONTAINER` | 아니요 | `yigo-mysql` | MySQL Docker 컨테이너 이름 |
-| `DB_NAME` | 아니요 | `wallet` | fixture를 적용할 DB 이름 |
+| `DB_NAME` | 아니요 | `wallet` | Fixture를 적용할 DB 이름 |
 | `API_TEST_BASE_URL` | 아니요 | `http://localhost:8080` | 테스트 대상 Backend 주소 |
+| `NEWMAN_JSON_REPORT_PATH` | 아니요 | 없음 | CLI와 함께 생성할 JSON 리포트 경로 |
 
-이 값들은 현재 PowerShell 프로세스에만 설정되며 `.env` 파일을 자동으로 읽지 않는다.
+## 실행 흐름
 
-## 실행
+`run.ps1`은 대상 DB와 필수 파일을 확인한 뒤 다음 순서로 실행합니다.
 
-```powershell
-cd api-test
-npm test
-```
+1. 실행별 12자리 `runId`를 생성합니다.
+2. `init.sql`로 해당 실행의 회원·인증·알림 Fixture를 생성합니다.
+3. 활성 `mock_card`를 조회하고 Newman collection을 실행합니다.
+4. 성공·실패와 관계없이 `finally`에서 `cleanup.sql`을 실행합니다.
 
-특정 Newman 폴더나 요청만 실행할 때는 `-Folder`를 전달한다. 여러 값을 지정하면 각 값이 Newman의 `--folder` 인자로 전달된다.
+로그인처럼 이후 요청의 전제조건인 요청이 실패하면 collection은 즉시 중단합니다.
+
+## 선택 실행과 결과 저장
+
+특정 Newman 폴더나 요청만 실행하려면 `-Folder`를 사용합니다.
 
 ```powershell
 npm test -- -Folder "06 Request and Error Contracts"
-npm test -- -Folder "[baseline] 인증 필터 - user-cards 토큰 없음"
 ```
 
-로그인처럼 이후 요청 전체의 전제 조건인 요청이 실패하면 collection은 즉시 중단한다. 빈 Access Token과 빈 동적 ID로 나머지 요청을 실행해 같은 원인의 401을 반복 보고하지 않는다.
-
-실행기는 다음 순서를 보장한다.
-
-1. `docker exec -i yigo-mysql mysql ...` 방식으로 실제 DB 이름을 확인한다.
-2. 실행별 12자리 `runId`를 만든다.
-3. `init.sql`로 해당 실행 전용 회원·인증·알림 fixture만 생성한다.
-4. 활성 `mock_card` 번호를 읽어 Newman runtime 변수로 넘긴다.
-5. Newman collection을 실행한다.
-6. 성공·실패와 무관하게 PowerShell `finally`에서 `cleanup.sql`을 실행한다.
-
-## 데이터 안전성
-
-- 테스트 이메일은 `newman-<용도>-<runId>@example.invalid` 형식이다.
-- 알림 deduplication key와 제목에도 같은 `runId`를 넣는다.
-- fixture는 공유 약관과 카드 마스터를 추가·수정·삭제하지 않는다.
-- 카드 등록 테스트는 기존 활성 `mock_card`를 읽기 전용으로 사용하고 테스트 회원의 `user_card`만 생성한다.
-- cleanup은 현재 실행의 정확한 이메일로 찾은 행만 FK 역순으로 삭제한다.
-- `TRUNCATE`, 스키마 변경, AUTO_INCREMENT 초기화, 일반 사용자 데이터 삭제를 하지 않는다.
-- Access Token, Refresh Token, 생성 ID는 런타임 collection variable에만 보관하며 environment를 export하지 않는다.
-
-중간에 PowerShell 프로세스 자체가 강제 종료되어 `finally`가 실행되지 못한 경우에는 그 실행의 `runId`를 확인한 뒤 다음처럼 cleanup만 수동 실행할 수 있다. SQL을 직접 실행할 때도 반드시 같은 `runId`를 `@api_test_run_id`에 지정해야 한다.
-
-## assertion 원칙
-
-- ID는 양수 숫자인지 확인하고 이후 요청에서 캡처한 값을 사용한다.
-- JWT는 값 비교 대신 세 개의 Base64URL segment 형식과 존재 여부를 검사한다.
-- 현재 레거시 MVC는 `LocalDateTime`을 ISO 문자열이 아니라 `[year, month, day, hour, minute, second?, nano?]` 배열로 직렬화한다. 시각 값 자체는 고정하지 않고 5~7개의 정수 배열 형식만 검사한다.
-- Jackson 3 변경 예측 요청은 현재 `FAIL_ON_UNKNOWN_PROPERTIES=false`, `FAIL_ON_TRAILING_TOKENS=false` 동작과 잘못된 JSON의 현재 에러 응답을 고정한다.
-- 인증 필터, Bean Validation, CORS preflight는 변경 근거 문서가 없는 현재 동작 기준선으로 구분한다.
-- 204 응답은 빈 본문을 검사한다.
-- 확인된 상태 코드와 오류 코드는 정확히 검사한다.
-- 실행마다 달라지는 Token, ID, 시각 및 수치 기록은 저장하지 않는다.
-
-## 문제 진단
-
-Newman 요약만으로는 최초 실패와 연쇄 실패를 구분하기 어렵다. 먼저 CLI 출력에서 가장 앞선 실패 요청을 확인하고, Spring Boot 프로세스 또는 `docker compose logs backend` 출력과 대조한다.
-
-`curl.exe -i http://localhost:8080/api/auth/signup`은 GET 요청이다. 이 저장소의 회원가입 endpoint는 POST 전용이며, 현재 전역 예외 처리기는 지원하지 않는 HTTP method 예외를 `SERVER_INTERNAL_ERROR` 500으로 변환한다. 회원가입 자체를 확인하려면 반드시 POST와 JSON 본문을 사용해야 한다.
+JSON 리포트가 필요하면 실행 전에 출력 경로를 지정합니다.
 
 ```powershell
-curl.exe -i -X POST `
-  -H "Content-Type: application/json" `
-  --data '{"email":"...","password":"Password123!","name":"...","signupVerificationToken":"...","termsAgreements":[...]}' `
-  http://localhost:8080/api/auth/signup
+$env:NEWMAN_JSON_REPORT_PATH = 'results/newman-report.json'
+npm test
 ```
 
-fixture의 회원 로그인 비밀번호는 `password`다. `init.sql`에는 이 값과 일치하는 BCrypt 해시만 저장한다.
+### CI
+
+CI는 MySQL 8·Redis 7.2를 새로 구성하고 JDK 21로 실행 JAR을 빌드·기동한 뒤, Flyway V1과 Seed를 적용하고 Node.js 24에서 같은 실행기를 호출합니다.
+`newman-api-test-results` Artifact에는 `newman-report.json`, `newman-transcript.log`, `backend.log`를 수집합니다.
+
+## 테스트 데이터 관리
+
+- 공유 약관, 카드 마스터 및 기존 사용자 데이터를 수정하거나 삭제하지 않습니다.
+- 테스트 데이터는 실행별 `runId`로 격리하며, `TRUNCATE` 없이 해당 실행의 데이터만 정리합니다.
+- 실행 중 생성한 Token과 ID는 collection variable에서 관리하며 Postman environment로 내보내지 않습니다.
+
+<details>
+<summary>강제 종료 시 수동 cleanup</summary>
+
+프로세스 강제 종료로 `finally`가 실행되지 않으면 테스트 데이터가 남을 수 있습니다.
+
+`run.ps1`은 `runId`를 별도로 출력하지 않으므로, 남아 있는 Newman Fixture 이메일에서 12자리 `runId`를 확인합니다.
+
+정리할 실행이 종료되었는지 확인하며, 대상 실행을 정확히 식별할 수 없다면 임의로 cleanup하지 않습니다.
+
+**1. 잔여 Fixture 조회**
+
+```powershell
+$dbContainer = if ($env:DB_CONTAINER) { $env:DB_CONTAINER } else { 'yigo-mysql' }
+$dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'wallet' }
+
+if ($dbContainer -notmatch '^[A-Za-z0-9_.-]+$') { throw 'DB_CONTAINER 형식 오류' }
+if ($dbName -notmatch '^[A-Za-z0-9_]+$') { throw 'DB_NAME 형식 오류' }
+
+docker exec -i -e "MYSQL_PWD=$env:DB_PASSWORD" $dbContainer `
+  mysql --protocol=socket --user=$env:DB_USER --database=$dbName --batch --skip-column-names `
+  -e "SELECT email FROM member WHERE email LIKE 'newman-%@example.invalid';"
+
+if ($LASTEXITCODE -ne 0) { throw 'Newman Fixture 조회 실패' }
+```
+
+**2. 대상 실행의 데이터 정리**
+
+조회 결과에서 정리할 실행의 `runId`를 확인한 뒤, 같은 PowerShell 터미널에서 실행합니다.
+
+```powershell
+$runId = '<조회 결과에서 확인한 12자리 runId>'
+
+if ($runId -notmatch '^[0-9a-f]{12}$') { throw 'runId 형식 오류' }
+
+$cleanupSql = "SET @api_test_run_id := '$runId';`n" + (Get-Content -Raw .\fixtures\cleanup.sql)
+
+$cleanupSql | docker exec -i `
+  -e "MYSQL_PWD=$env:DB_PASSWORD" `
+  $dbContainer mysql --protocol=socket --user=$env:DB_USER --database=$dbName
+
+if ($LASTEXITCODE -ne 0) { throw 'Newman Fixture cleanup 실패' }
+```
+
+</details>
+
+## 실패 확인
+
+Newman 출력에서 가장 먼저 실패한 요청을 확인한 뒤 Backend 프로세스 로그 또는
+`docker compose logs backend`와 대조합니다. 연쇄 실패보다 최초 실패 원인을 먼저 해결합니다.
