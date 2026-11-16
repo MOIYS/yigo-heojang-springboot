@@ -624,13 +624,57 @@
             "url": "{{baseUrl}}/api/auth/login"
           },
           "event": [{ "listen": "test", "script": { "exec": [
-            "// 현재 HttpMessageNotReadableException이 일반 예외 처리기로 전달되어 500이 되는 바람직하지 않은 동작을 고정한다.",
-            "pm.test('Jackson 3 변경 예측: 잘못된 JSON의 현재 HTTP 에러 계약을 유지한다', function () {",
-            "  pm.response.to.have.status(500);",
+            "pm.test('잘못된 JSON은 400 INPUT_INVALID를 반환한다', function () {",
+            "  pm.response.to.have.status(400);",
             "  const body = pm.response.json();",
             "  pm.expect(body.success).to.eql(false);",
-            "  pm.expect(body.code).to.eql('SERVER_INTERNAL_ERROR');",
+            "  pm.expect(body.code).to.eql('INPUT_INVALID');",
+            "  pm.expect(body.message).to.eql('입력값이 올바르지 않습니다.');",
             "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "미매칭 API 경로",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/not-found" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('미매칭 경로는 404 NOT_FOUND를 반환한다', function () {",
+            "  pm.response.to.have.status(404);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('NOT_FOUND');",
+            "  pm.expect(body.message).to.eql('요청한 리소스를 찾을 수 없습니다.');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "기존 API 경로의 trailing slash",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/members/me/" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('trailing slash 경로는 404 NOT_FOUND를 반환한다', function () {",
+            "  pm.response.to.have.status(404);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('NOT_FOUND');",
+            "  pm.expect(body.message).to.eql('요청한 리소스를 찾을 수 없습니다.');",
+            "  pm.expect(body.data).to.eql(null);",
+            "});"
+          ] } }]
+        },
+        {
+          "name": "미지원 HTTP 메서드",
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/api/members/me" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('미지원 메서드는 405 METHOD_NOT_ALLOWED와 Allow 헤더를 반환한다', function () {",
+            "  pm.response.to.have.status(405);",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.success).to.eql(false);",
+            "  pm.expect(body.code).to.eql('METHOD_NOT_ALLOWED');",
+            "  pm.expect(body.message).to.eql('지원하지 않는 HTTP 메서드입니다.');",
+            "  pm.expect(body.data).to.eql(null);",
+            "  const allow = pm.response.headers.get('Allow').split(',').map(value => value.trim());",
+            "  pm.expect(allow).to.include.members(['GET', 'PATCH', 'DELETE']);",
             "});"
           ] } }]
         },
