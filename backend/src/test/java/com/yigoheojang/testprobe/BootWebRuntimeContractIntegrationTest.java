@@ -40,6 +40,7 @@ import org.springframework.http.converter.support.AllEncompassingFormHttpMessage
 import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -174,7 +175,12 @@ class BootWebRuntimeContractIntegrationTest {
             "/test-only/date/",
             String.class
         );
-        assertThat(trailingSlashResponse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertErrorResponse(
+            trailingSlashResponse,
+            HttpStatus.NOT_FOUND,
+            "NOT_FOUND",
+            "요청한 리소스를 찾을 수 없습니다."
+        );
     }
 
     @Test
@@ -204,7 +210,7 @@ class BootWebRuntimeContractIntegrationTest {
     }
 
     @Test
-    void jackson2RequestContractsAndMalformedJsonStatusArePreserved() {
+    void jacksonRequestContractsArePreservedAndMalformedJsonReturnsBadRequest() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -224,14 +230,57 @@ class BootWebRuntimeContractIntegrationTest {
             new HttpEntity<>("{\"count\":", headers),
             String.class
         );
-        assertThat(malformed.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertErrorResponse(
+            malformed,
+            HttpStatus.BAD_REQUEST,
+            "INPUT_INVALID",
+            "입력값이 올바르지 않습니다."
+        );
     }
 
     @Test
-    void unmatchedPathStillReturnsInternalServerError() {
+    void unmatchedPathReturnsNotFound() {
         ResponseEntity<String> response = restTemplate.getForEntity("/test-only/not-found", String.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertErrorResponse(
+            response,
+            HttpStatus.NOT_FOUND,
+            "NOT_FOUND",
+            "요청한 리소스를 찾을 수 없습니다."
+        );
+    }
+
+    @Test
+    void unsupportedMethodReturnsMethodNotAllowedWithAllowHeader() {
+        ResponseEntity<String> response = restTemplate.exchange(
+            "/test-only/date",
+            HttpMethod.POST,
+            HttpEntity.EMPTY,
+            String.class
+        );
+
+        assertErrorResponse(
+            response,
+            HttpStatus.METHOD_NOT_ALLOWED,
+            "METHOD_NOT_ALLOWED",
+            "지원하지 않는 HTTP 메서드입니다."
+        );
+        assertThat(response.getHeaders().getAllow()).contains(HttpMethod.GET, HttpMethod.PATCH);
+    }
+
+    @Test
+    void unexpectedExceptionKeepsInternalServerErrorContract() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            "/test-only/unexpected-error",
+            String.class
+        );
+
+        assertErrorResponse(
+            response,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "SERVER_INTERNAL_ERROR",
+            "서버 내부 오류가 발생했습니다."
+        );
     }
 
     @Test
@@ -268,6 +317,19 @@ class BootWebRuntimeContractIntegrationTest {
         );
     }
 
+    private void assertErrorResponse(
+        ResponseEntity<String> response,
+        HttpStatus status,
+        String code,
+        String message
+    ) {
+        assertThat(response.getStatusCode()).isEqualTo(status);
+        assertThat(response.getBody()).isEqualTo(
+            "{\"success\":false,\"code\":\"" + code + "\",\"message\":\""
+                + message + "\",\"data\":null}"
+        );
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class TestProbeConfiguration {
 
@@ -283,6 +345,16 @@ class BootWebRuntimeContractIntegrationTest {
         @GetMapping("/test-only/date")
         Map<String, LocalDateTime> date() {
             return Map.of("value", LocalDateTime.of(2026, 10, 26, 12, 34, 56));
+        }
+
+        @PatchMapping("/test-only/date")
+        Map<String, LocalDateTime> updateDate() {
+            return date();
+        }
+
+        @GetMapping("/test-only/unexpected-error")
+        void unexpectedError() {
+            throw new IllegalStateException("test-only unexpected error");
         }
 
         @PostMapping(

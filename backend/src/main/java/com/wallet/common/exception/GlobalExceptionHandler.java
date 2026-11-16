@@ -2,11 +2,14 @@ package com.wallet.common.exception;
 
 import com.wallet.common.ApiResponse;
 import com.wallet.common.ErrorCode;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +51,36 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.INPUT_INVALID.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(
+        HttpMessageNotReadableException e
+    ) {
+        return errorResponse(ErrorCode.INPUT_INVALID);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFoundException(NoResourceFoundException e) {
+        return errorResponse(ErrorCode.NOT_FOUND);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpRequestMethodNotSupportedException(
+        HttpRequestMethodNotSupportedException e
+    ) {
+        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
+                .headers(e.getHeaders())
+                .body(ApiResponse.error(ErrorCode.METHOD_NOT_ALLOWED));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception e) {
         log.error("처리되지 않은 서버 오류", e);
         return ResponseEntity.status(ErrorCode.SERVER_INTERNAL_ERROR.getStatus())
                 .body(ApiResponse.error(ErrorCode.SERVER_INTERNAL_ERROR));
+    }
+
+    private ResponseEntity<ApiResponse<Void>> errorResponse(ErrorCode errorCode) {
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(ApiResponse.error(errorCode));
     }
 }

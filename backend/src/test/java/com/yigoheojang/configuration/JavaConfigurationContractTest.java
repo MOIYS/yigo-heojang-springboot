@@ -117,7 +117,7 @@ class JavaConfigurationContractTest {
 
         var result = MockMvcBuilders.webAppContextSetup((WebApplicationContext) context).build()
             .perform(get("/test-only/not-found"))
-            .andExpect(status().isInternalServerError())
+            .andExpect(status().isNotFound())
             .andReturn();
         assertThat(result.getResolvedException()).isInstanceOf(NoResourceFoundException.class);
     }

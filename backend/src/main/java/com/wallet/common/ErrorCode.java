@@ -37,6 +37,12 @@ public enum ErrorCode {
         "RESOURCE_STATE_INVALID",
         "요청을 처리할 수 없는 리소스 상태입니다."),
 
+    /** 지원하지 않는 HTTP 메서드 */
+    METHOD_NOT_ALLOWED(
+        HttpStatus.METHOD_NOT_ALLOWED,
+        "METHOD_NOT_ALLOWED",
+        "지원하지 않는 HTTP 메서드입니다."),
+
 
     // =========================================================================
     //  2. 인증 및 권한 (Authorization)

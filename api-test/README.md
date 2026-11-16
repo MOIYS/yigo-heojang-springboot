@@ -42,22 +42,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
 | 회원정보 | 인증 실패, 회원 조회·수정 |
 | 보유 카드 | 등록, 목록·상세, 대표 카드 설정, 삭제 |
 | 알림 | 목록, 읽음·삭제와 실패 응답 |
-| 공통 계약 | Jackson 호환, Validation, 인증 필터, CORS preflight |
+| 공통 계약 | Jackson 호환, Validation, 400·404·405 오류 응답, 인증 필터, CORS preflight |
 
 정지·탈퇴 회원과 만료 Access Token은 현재 Newman 검증 범위에 포함되지 않습니다.
-
-## 기존 계약과 알려진 결함
-
-- `/api/health`는 현재 Access Token 인증을 요구합니다.
-- Access Token 재발급 시, Refresh Token을 회전하지 않으며 같은 Refresh Token을 다시 사용할 수 있습니다.
-
-| 항목 | 현재 응답 | 목표 응답 | 현재 자동 검증 |
-| --- | --- | --- | --- |
-| 잘못된 JSON 문법 | 500 | 400 | Newman·Backend |
-| 존재하지 않는 경로·trailing slash | 500 | 404 | Backend |
-| 지원하지 않는 HTTP method | 500 | 405 | 없음 |
-
-[이슈 #66](https://github.com/MOIYS/yigo-heojang-springboot/issues/66)은 현재 열려 있습니다. 결함 수정이나 의도적인 계약 변경 시 관련 assertion과 문서를 같은 작업에서 갱신합니다.
 
 ## 환경변수
 
